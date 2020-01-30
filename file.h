@@ -6,7 +6,7 @@
  *                                                                   *
  *  Copyright (c) 2014, Nilesh Khiste                                *
  *  All rights reserved                                              *
- *                                                                   * 
+ *                                                                   *
  *  This program is free software: you can redistribute it and/or    *
  *  modify it under the terms of the GNU General Public License as   *
  *  published by the Free Software Foundation, either version 3 of   *
@@ -42,11 +42,11 @@ class commonData {
     static int32_t relQueryPos;
     static char nucmer_path[256];
 };
-    
+
 int32_t commonData::minMemLen=100; // 2 bit representation=50
 int32_t commonData::d=1;
 int32_t commonData::numThreads=1;
-int32_t commonData::kmerSize=56; //2 bit representation = 28 
+int32_t commonData::kmerSize=56; //2 bit representation = 28
 int32_t commonData::ignoreN=0;
 int32_t commonData::fourColOutput=0;
 int32_t commonData::lenInHeader=0;
@@ -59,7 +59,7 @@ class seqData {
     uint64_t start;
     uint64_t end;
     std::string seq;
-    seqData() 
+    seqData()
     {
         start=0;
         end=0;
@@ -85,7 +85,7 @@ class mapObject {
           right=y;
       }
 
-      bool operator()(const uint64_t &x, const mapObject &y) 
+      bool operator()(const uint64_t &x, const mapObject &y)
       {
           return x < y.left;
       }
@@ -104,8 +104,8 @@ class seqFileReadInfo {
       {
          static string str("NNNNNNNNNN");
          return str;
-      } 
-   
+      }
+
       void processTmpString(uint64_t &sz, uint64_t &blockNCount)
       {
           string line = strTmp;
@@ -127,7 +127,7 @@ class seqFileReadInfo {
           /* Processing the sequences by encoding the base pairs into 2 bits. */
           for ( std::string::iterator it=str.begin(); it!=str.end(); ++it)
           {
-              if (totalBases == sz){ //sz=size+minSize
+              if (totalBases == sz){
                   strTmp += *it;
                   continue;
               }else if (totalBases >= size) {
@@ -137,7 +137,7 @@ class seqFileReadInfo {
               {
                   case 'A':
                   case 'a':
-                      binReads[binReadsLocation] <<= 2;
+                      binReads[binReadsLocation] <<= 2; // shift left by 2 bits
                       if (commonData::ignoreN && blockNCount){
                          blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
                          blockNCount=0;
@@ -203,7 +203,7 @@ class seqFileReadInfo {
       uint64_t *binReads;
       uint64_t totalBases;
       std::vector <mapObject> blockOfNs;
-      
+
       seqFileReadInfo() {
           size=0;
           currPos=0;
@@ -212,7 +212,7 @@ class seqFileReadInfo {
           numSequences=0;
           totalBases=0;
       }
-      
+
       seqFileReadInfo(string str)
       {
           size=0;
@@ -250,7 +250,7 @@ class seqFileReadInfo {
       void closeFile() {
           file.close();
       }
-    
+
       void destroy() {
           currPos=0;
           binReadSize=0;
@@ -266,8 +266,8 @@ class seqFileReadInfo {
       {
           file.clear();
           file.seekg(0, ios::beg);
-      } 
-    
+      }
+
       uint64_t allocBinArray()
       {
           size = size/commonData::d;
@@ -278,11 +278,11 @@ class seqFileReadInfo {
               blockOfNs.reserve(numSequences+10);
           return size;
       }
-  
+
       void clearMapForNs()
       {
           blockOfNs.clear();
-      } 
+      }
 
       void clearTmpString()
       {
@@ -290,14 +290,14 @@ class seqFileReadInfo {
           strName.clear();
           clearMapForNs();
       }
-      
+
       void getKmerLeftnRightBoundForNs(uint64_t &currKmerPos, mapObject &bounds)
       {
           uint64_t right=0;
           /*
            * Since we do all computation with bits, all our
            * positions are even. Here I return 1 (odd position),
-           * an indication of no Ns towards left   
+           * an indication of no Ns towards left
            */
 
           if (!blockOfNs.size()){
@@ -307,7 +307,7 @@ class seqFileReadInfo {
           }
 
           vector<mapObject>::iterator it;
-          it=upper_bound(blockOfNs.begin(), blockOfNs.end(), currKmerPos, mapObject()); 
+          it=upper_bound(blockOfNs.begin(), blockOfNs.end(), currKmerPos, mapObject());
           /* No N block beyond this point */
           if (it == blockOfNs.end())
               right = CHARS2BITS(totalBases-1);
@@ -339,8 +339,8 @@ class seqFileReadInfo {
                   break;
               else
                   ++it;
-          }    
-    
+          }
+
 
           /* No N block beyond this point */
           if (it == blockOfNs.end()){
@@ -354,7 +354,7 @@ class seqFileReadInfo {
                   return false;
               }
           }
- 
+
           if ((*it).left > (currKmerPos+commonData::kmerSize-2)){
               if (it != blockOfNs.begin()){
                   --it;
@@ -375,15 +375,15 @@ class seqFileReadInfo {
 
       void setCurrPos() {
           currPos+=size;;
-      } 
+      }
 
       uint64_t getCurrPos() {
           return currPos;
-      } 
+      }
 
       void resetCurrPos() {
           currPos=0;
-      } 
+      }
 
       bool readChunks()
       {
@@ -393,7 +393,7 @@ class seqFileReadInfo {
           uint64_t sz=size+minSize;
           /* Process anything remaining from the last iteration */
           processTmpString(sz, blockNCount);
-          
+
           while(getline( file, line ).good() ){
               if(line[0] == '>' || (totalBases == sz)){
                   if( !strName.empty()){ // Process what we read from the last entry
@@ -475,7 +475,7 @@ class seqFileReadInfo {
           string::iterator itEnd = --content.end();
           char beg=0, end=0;
           uint64_t d=0;
-          while ((d=distance(itBeg,itEnd))) 
+          while ((d=distance(itBeg,itEnd)))
           {
               flipCharacter(*itBeg, end);
               flipCharacter(*itEnd, beg);
@@ -551,11 +551,11 @@ class seqFileReadInfo {
 
           clearFileFlag();
           while(getline(file, line).good() ){
-              size += (line.length()+1); 
+              size += (line.length()+1);
               if(line[0] == '>'){
                   if(!strName.empty()) {
                       numSequences++;
-                      size += RANDOM_SEQ_SIZE; 
+                      size += RANDOM_SEQ_SIZE;
                       if (revComplement){
                           writeReverseComplementString(strName, content, revFile);
                           content.clear();
@@ -571,8 +571,9 @@ class seqFileReadInfo {
                   }
               }
           }
+          // Catches the last sequence line
           if( !strName.empty() ) {
-              size += (line.length()+1); 
+              size += (line.length()+1);
               if (revComplement) {
                   content += "\n";
                   content += line;
@@ -617,22 +618,22 @@ class MemExt {
              return true;
          else
              return false;
-      } 
+      }
     }
 };
 
 
 class tmpFilesInfo {
-    fstream *TmpFiles;   
+    fstream *TmpFiles;
     vector <MemExt> MemExtVec;
-    uint64_t numMemsInFile; 
+    uint64_t numMemsInFile;
 
     bool checkMEMExt(uint64_t &lr, uint64_t &rr, uint64_t &lq, uint64_t &rq, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile) {
       if ((!lq && QueryFile.getCurrPos()) || rq == CHARS2BITS(QueryFile.totalBases-1)) {
          return true;
       }else if((!lr && RefFile.getCurrPos()) || rr == CHARS2BITS(RefFile.totalBases-1)) {
          return true;
-      } 
+      }
       return false;
     }
 
@@ -647,7 +648,7 @@ class tmpFilesInfo {
         else
             TmpFiles[m.lQ/numMemsInFile].write((char *)&m, sizeof(MemExt));
     }
-    
+
     void writeToVector(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR) {
         MemExt m;
         m.lQ=lQ;
@@ -659,7 +660,7 @@ class tmpFilesInfo {
 
 
   public:
- 
+
     tmpFilesInfo(int numFiles) {
         TmpFiles = new fstream[numFiles];
     }
@@ -667,11 +668,11 @@ class tmpFilesInfo {
     ~tmpFilesInfo() {
         delete [] TmpFiles;
     }
-   
+
     void setNumMemsInFile(uint64_t size, uint64_t &numSequences) {
         numMemsInFile = ((2*(size*commonData::d+numSequences*RANDOM_SEQ_SIZE+commonData::d))/NUM_TMP_FILES);
     }
-   
+
     static bool compare_reference (const MemExt &obj1, const MemExt &obj2)
     {
       if (obj1.lR<obj2.lR)
@@ -710,7 +711,7 @@ class tmpFilesInfo {
         }
         /* Last two files hold the sequence/pos mapping
          * for reference and query file respectively
-         */   
+         */
         for (int32_t i=0;i<numFiles;i++) {
             /* Temporary file to hold the mems */
             sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
@@ -722,17 +723,17 @@ class tmpFilesInfo {
             }
         }
     }
-    
+
     void closeFiles(int numFiles) {
         for (int32_t i=0;i<numFiles;i++){
            TmpFiles[i].close();
         }
     }
-    
+
     fstream& getMapFile(int fIndex) {
         return TmpFiles[fIndex];
     }
-    
+
     bool writeMemInTmpFiles(uint64_t &lRef, uint64_t &rRef, uint64_t &lQue, uint64_t &rQue, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile, uint32_t &revComplement) {
        MemExt m;
        uint64_t currPosQ = CHARS2BITS(QueryFile.getCurrPos());
@@ -776,7 +777,7 @@ class tmpFilesInfo {
         vector<seqData>::iterator itR;
         static vector<seqData>::iterator itQ=querySeqInfo.begin();
         seqData s;
-        
+
         /* print remianing query sequences - if any */
         if (!lRef && !rRef && !lQue && !rQue) {
             /* No matches found - simply return */
@@ -795,10 +796,10 @@ class tmpFilesInfo {
 
         s.start=lRef;
         s.end=rRef;
-   
+
         if (rRef-lRef+2 < static_cast<uint64_t>(commonData::minMemLen))
             return;
-           
+
 
         /* Process relative position for Reference sequence */
         itR = lower_bound(refSeqInfo.begin(), refSeqInfo.end(), s, seqData());
@@ -835,8 +836,8 @@ class tmpFilesInfo {
 
         if (rRef-lRef+2 < static_cast<uint64_t>(commonData::minMemLen))
             return;
-       
-        /* Print first Query sequence */ 
+
+        /* Print first Query sequence */
         if (!flag){
             printQueryHeader(itQ, revComplement);
             flag=1;
@@ -875,8 +876,8 @@ class tmpFilesInfo {
             rQue=((*itQ).end-(*itQ).start);
         }else //mem within random character
             return;
- 
-        
+
+
         if (rRef-lRef+2 >= static_cast<uint64_t>(commonData::minMemLen)){
            if (refSeqInfo.size() == 1 && !commonData::fourColOutput) {
                if ((revComplement & 0x1) && commonData::relQueryPos)
@@ -892,7 +893,7 @@ class tmpFilesInfo {
            }
         }
     }
-   
+
     void mergeMemExtVector (uint32_t &revComplement) {
         int flag=0;
         MemExt m;
@@ -914,7 +915,7 @@ class tmpFilesInfo {
                      for (; dup != last; ++dup) {
                         if (!(*dup).lQ && !(*dup).rQ && !(*dup).lR && !(*dup).rR )
                             continue;
-                        if((*dup).lQ + static_cast<uint64_t>(commonData::minMemLen-2)-2 > (*it).rQ) 
+                        if((*dup).lQ + static_cast<uint64_t>(commonData::minMemLen-2)-2 > (*it).rQ)
                             break;
                         if((*dup).lQ + static_cast<uint64_t>(commonData::minMemLen-2)-2 == (*it).rQ) {
                             if((*dup).lR + static_cast<uint64_t>(commonData::minMemLen-2)-2 == (*it).rR) {
@@ -947,7 +948,7 @@ class tmpFilesInfo {
                     for (; dup != last; ++dup) {
                         if (!(*dup).lQ && !(*dup).rQ && !(*dup).lR && !(*dup).rR )
                             continue;
-                        if((*dup).lR + static_cast<uint64_t>(commonData::minMemLen-2)-2 > (*it).rR) 
+                        if((*dup).lR + static_cast<uint64_t>(commonData::minMemLen-2)-2 > (*it).rR)
                             break;
                         if((*dup).lR + static_cast<uint64_t>(commonData::minMemLen-2)-2 == (*it).rR) {
                             if((*dup).lQ + static_cast<uint64_t>(commonData::minMemLen-2)-2 == (*it).rQ) {
@@ -988,7 +989,7 @@ class tmpFilesInfo {
         (*revFile).open(buffer, ios::in);
 
         filePtr = forFile;
-        if(getline((*filePtr), line).good()) 
+        if(getline((*filePtr), line).good())
             cout << line << "\n";
 
         while(getline((*filePtr), line).good()) {
@@ -999,7 +1000,7 @@ class tmpFilesInfo {
                 if (filePtr == forFile) {
                     filePtr = revFile;
                     if (first) {
-                        if(getline((*filePtr), line).good()) 
+                        if(getline((*filePtr), line).good())
                             cout << line << "\n";
                         first=0;
                     }
@@ -1012,9 +1013,9 @@ class tmpFilesInfo {
 
         cout << last_line << "\n";
         filePtr = revFile;
-        while(getline((*filePtr), line).good()) 
+        while(getline((*filePtr), line).good())
             cout << line << "\n";
-   
+
         (*revFile).close();
         (*forFile).close();
         remove(buffer);
@@ -1039,7 +1040,7 @@ class tmpFilesInfo {
         openFiles(ios::in|ios::binary, numFiles);
 
         sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles);
-        if (IS_MATCH_BOTH_DEF(revComplement)) 
+        if (IS_MATCH_BOTH_DEF(revComplement))
             TmpFiles[numFiles].open(buffer, ios::out|ios::trunc);
         else
             remove(buffer);
@@ -1051,11 +1052,11 @@ class tmpFilesInfo {
         else
             remove(buffer);
 
-        /* Indication that reverse complement is being processed */ 
+        /* Indication that reverse complement is being processed */
         if (IS_MATCH_REV_DEF(revComplement))
-            revComplement|=0x1; 
- 
-        /* Redirect std::cout to a file */ 
+            revComplement|=0x1;
+
+        /* Redirect std::cout to a file */
         if (IS_MATCH_BOTH_DEF(revComplement)){
             std::cout.rdbuf(TmpFiles[numFiles].rdbuf());
         }
@@ -1067,9 +1068,9 @@ class tmpFilesInfo {
                 /* Output any unsued query sequence */
                 m.lR=m.lQ=m.rR=m.rQ=0;
                 printMemOnTerminal(refSeqInfo, querySeqInfo, m, revComplement);
-                /* Processing reverse complement files now*/ 
-                revComplement|=0x1; 
-                /* Redirect output to reverse complement file */ 
+                /* Processing reverse complement files now*/
+                revComplement|=0x1;
+                /* Redirect output to reverse complement file */
                 std::cout.rdbuf(TmpFiles[numFiles+1].rdbuf());
             }
 
@@ -1090,7 +1091,7 @@ class tmpFilesInfo {
         m.lR=m.lQ=m.rR=m.rQ=0;
         printMemOnTerminal(refSeqInfo, querySeqInfo, m, revComplement);
 
-        /* Restore std::cout */ 
+        /* Restore std::cout */
         if (IS_MATCH_BOTH_DEF(revComplement)){
             TmpFiles[numFiles].close();
             TmpFiles[numFiles+1].close();
