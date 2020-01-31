@@ -97,7 +97,7 @@ void buildRefHash(Knode* &refHash, uint64_t totalBits, seqFileReadInfo &RefFile)
  * Input: name : reference sequence string for output
  *
  */
-void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos, uint32_t &revComplement)
+void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos)
 {
     /*
      * lRef and lQue are local variables for left extension of
@@ -287,13 +287,16 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
         rQue=totalQBits;
     }
 
+    /* Ignore reverse complements of the same ORF, i.e. where matching prefix/suffix of reference/query
+     * Also excludes N mismatches
+     */
     if ((lRef?lRef!=RefNpos.left:!RefNpos.left) && (rQue?rQue!=QueryNpos.right:!QueryNpos.right)){
         if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left))
-            arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, QueryFile, RefFile, revComplement);
-    } // TODO:: record N positions so other kmer matches get ignored
+            arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, QueryFile, RefFile);
+    }
 }
 
-void reportMEM(Knode * &refHash, uint64_t totalBases, uint64_t totalQBases, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, uint32_t &revComplement)
+void reportMEM(Knode * &refHash, uint64_t totalBases, uint64_t totalQBases, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
 {
   uint64_t totalQBits = CHARS2BITS(totalQBases); //convert char position to bit position of QueryFile.totalBases-1
   uint32_t copyBits=0;
@@ -362,20 +365,20 @@ void reportMEM(Knode * &refHash, uint64_t totalBases, uint64_t totalQBases, seqF
           {
               // We have a match
               for (uint64_t n=1; n<=dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                  helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases), RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, revComplement);
+                  helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases), RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos);
               }
           }
       }
   }
 }
 
-void processQuery(Knode * &refHash, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, uint32_t &revComplement)
+void processQuery(Knode * &refHash, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
 {
     QueryFile.clearFileFlag();
     QueryFile.resetCurrPos();
     for (int32_t i=0; i<commonData::d; i++) {
         if(QueryFile.readChunks()){ // readChunks to encode sequence into 2-bits in QueryFile object
-            reportMEM(refHash, RefFile.totalBases-1, QueryFile.totalBases-1, RefFile, QueryFile, arrayTmpFile, revComplement);
+            reportMEM(refHash, RefFile.totalBases-1, QueryFile.totalBases-1, RefFile, QueryFile, arrayTmpFile);
             QueryFile.setCurrPos();
             QueryFile.clearMapForNs();
         }
@@ -385,7 +388,7 @@ void processQuery(Knode * &refHash, seqFileReadInfo &RefFile, seqFileReadInfo &Q
     QueryFile.clearTmpString();
 }
 
-void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, uint32_t &revComplement)
+void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
 {
     uint64_t numberOfKmers=0,n=0;
     int hashTableSizeIndex=0;
@@ -414,7 +417,7 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
 
     buildRefHash(refHash, CHARS2BITS(RefFile.totalBases-1), RefFile);
 
-    processQuery(refHash, RefFile, QueryFile, arrayTmpFile, revComplement);
+    processQuery(refHash, RefFile, QueryFile, arrayTmpFile);
 
     delete [] refHash;
 }
@@ -477,38 +480,22 @@ void checkCommandLineOptions(uint32_t &options)
             exit( EXIT_FAILURE );
         }
     }
-
-    if (IS_MATCH_REV_DEF(options) && IS_MATCH_BOTH_DEF(options)) {
-        cout << "ERROR: option -b and option -r exclude each other!" << endl;
-        exit(EXIT_FAILURE);
-    }
-
-    if(IS_RELREV_QUEPOS_DEF(options)) {
-        if (!IS_MATCH_REV_DEF(options) && !IS_MATCH_BOTH_DEF(options)) {
-            cout << "ERROR: option -c requires either option -r or - b" << endl;
-            exit( EXIT_FAILURE );
-        }
-    }
 }
 
 void print_help_msg()
 {
     cout <<  endl;
-    cout << "E-MEM Version 1.0.2, Dec. 12, 2017" << endl;
-    cout << "© 2014 Nilesh Khiste, Lucian Ilie" << endl;
+    cout << "PAL-MEM Version 1.0.0, Jan. 31, 2020" << endl;
+    cout << "Adapted from E-MEM Version 1.0.2, Dec. 12, 2017, by Nilesh Khiste and Lucian Ilie" << endl;
     cout <<  endl;
     cout << "E-MEM finds and outputs the position and length of all maximal" << endl;
     cout << "exact matches (MEMs) between <query-file> and <reference-file>" << endl;
     cout << endl;
-    cout << "Usage: ../e-mem [options]  <reference-file>  <query-file>" << endl;
+    cout << "Usage: e-mem [options]  <reference-file>  <query-file>" << endl;
     cout << endl;
     cout << "Options:" << endl;
-    cout << "-n\t" << "match only the characters a, c, g, or t" << endl;
-    cout << "  \tthey can be in upper or in lower case" << endl;
     cout << "-l\t" << "set the minimum length of a match. The default length" << endl;
     cout << "  \tis 50" << endl;
-    cout << "-b\t" << "compute forward and reverse complement matches" << endl;
-    cout << "-r\t" << "only compute reverse complement matches" << endl;
     cout << "-c\t" << "report the query-position of a reverse complement match" << endl;
     cout << "  \trelative to the original query sequence" << endl;
     cout << "-F\t" << "force 4 column output format regardless of the number of" << endl;
@@ -522,7 +509,7 @@ void print_help_msg()
 int main (int argc, char *argv[])
 {
     int32_t i=0, n=1;
-    uint32_t options=0, revComplement=0;
+    uint32_t options=0;
     seqFileReadInfo RefFile, QueryFile;
 
     // Check Arguments
@@ -532,6 +519,7 @@ int main (int argc, char *argv[])
     }
 
     while(argv[n]) {
+
         if(boost::equals(argv[n],"-l")){
             if (IS_LENGTH_DEF(options)) {
                 cout << "ERROR: Length argument passed multiple times!" << endl;
@@ -598,28 +586,6 @@ int main (int argc, char *argv[])
             }
             cout << "ERROR: More input files than expected!" << endl;
             exit(EXIT_FAILURE);
-        }else if (boost::equals(argv[n],"-r")){
-            if (IS_MATCH_REV_DEF(options)) {
-                cout << "ERROR: Reverse match argument passed multiple times!" << endl;
-                exit(EXIT_FAILURE);
-            }
-            SET_MATCH_REV(options);
-            n+=1;
-        }else if (boost::equals(argv[n],"-b")){
-            if (IS_MATCH_BOTH_DEF(options)) {
-                cout << "ERROR: option -b passed multiple times!" << endl;
-                exit(EXIT_FAILURE);
-            }
-            SET_MATCH_BOTH(options);
-            n+=1;
-        }else if (boost::equals(argv[n],"-n")){
-            if (IS_IGNORE_N_DEF(options)) {
-                cout << "ERROR: Ignore N's argument passed multiple times!" << endl;
-                exit(EXIT_FAILURE);
-            }
-            SET_IGNORE_N(options);
-            commonData::ignoreN = 1;
-            n+=1;
         }else if (boost::equals(argv[n],"-c")){
             if (IS_RELREV_QUEPOS_DEF(options)) {
                 cout << "ERROR: option -c passed multiple times!" << endl;
@@ -676,17 +642,15 @@ int main (int argc, char *argv[])
      */
     sprintf(commonData::nucmer_path, "%s/%d_tmp", getenv("NUCMER_E_MEM_OUTPUT_DIRPATH")?getenv("NUCMER_E_MEM_OUTPUT_DIRPATH"):".",getpid());
 
-    tmpFilesInfo arrayTmpFile(IS_MATCH_BOTH_DEF(options)?(2*NUM_TMP_FILES+2):NUM_TMP_FILES+2);
-    arrayTmpFile.openFiles(ios::out|ios::binary, IS_MATCH_BOTH_DEF(options)?(2*NUM_TMP_FILES+2):NUM_TMP_FILES+2);
+    tmpFilesInfo arrayTmpFile(NUM_TMP_FILES+2);
+    arrayTmpFile.openFiles(ios::out|ios::binary, NUM_TMP_FILES+2);
 
-    RefFile.generateRevComplement(0); // This routine also computers size and num sequences
-    QueryFile.generateRevComplement((IS_MATCH_REV_DEF(options) || IS_MATCH_BOTH_DEF(options))); // Reverse complement only for query
+    RefFile.generateRevComplement(); // This routine also computers size and num sequences
+    QueryFile.generateRevComplement(); // Reverse complement only for query
 
     /* Only reverse complement matches */
-    if (IS_MATCH_REV_DEF(options)){
-        QueryFile.setReverseFile();
-        SET_MATCH_REV(revComplement);
-    }
+    QueryFile.setReverseFile();
+
     arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(), QueryFile.getNumSequences());
     RefFile.allocBinArray();
     RefFile.clearFileFlag();
@@ -695,7 +659,7 @@ int main (int argc, char *argv[])
     {
         for (i=0; i<commonData::d; i++) {
             if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
-                processReference(RefFile, QueryFile, arrayTmpFile, revComplement); // Build hashtable, query hashtable, find ls, and write temp files
+                processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
                 RefFile.setCurrPos(); // Add size (the number of nucl in the file)
                 RefFile.clearMapForNs(); // clear block of Ns from memory
             }
@@ -707,27 +671,14 @@ int main (int argc, char *argv[])
          * Process MemExt list and write to file
          */
 
-        arrayTmpFile.mergeMemExtVector(revComplement);
-
-        if (revComplement)
-            break;
-        if (IS_MATCH_BOTH_DEF(options)){
-            SET_MATCH_BOTH(revComplement);
-            //revComplement=1;
-            RefFile.clearFileFlag();
-            RefFile.resetCurrPos();
-            RefFile.totalBases=0;
-            QueryFile.setReverseFile();
-            QueryFile.totalBases=0;
-        }
-        else
-            break;
+        arrayTmpFile.mergeMemExtVector();
+        break;
     }
 
     /*
      * Free up the allocated arrays
      */
-    arrayTmpFile.closeFiles(IS_MATCH_BOTH_DEF(options)?(2*NUM_TMP_FILES):NUM_TMP_FILES);
+    arrayTmpFile.closeFiles(NUM_TMP_FILES);
     RefFile.destroy();
     QueryFile.destroy();
 
@@ -744,7 +695,7 @@ int main (int argc, char *argv[])
     RefFile.closeFile();
     QueryFile.closeFile();
 
-    arrayTmpFile.removeDuplicates(refSeqInfo, querySeqInfo, revComplement);
+    arrayTmpFile.removeDuplicates(refSeqInfo, querySeqInfo);
     fflush(0);
     return 0;
 }

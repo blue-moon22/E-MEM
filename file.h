@@ -36,7 +36,6 @@ class commonData {
     static int32_t d;
     static int32_t numThreads;
     static int32_t kmerSize;
-    static int32_t ignoreN;
     static int32_t fourColOutput;
     static int32_t lenInHeader;
     static int32_t relQueryPos;
@@ -47,7 +46,6 @@ int32_t commonData::minMemLen=100; // 2 bit representation=50
 int32_t commonData::d=1;
 int32_t commonData::numThreads=1;
 int32_t commonData::kmerSize=56; //2 bit representation = 28
-int32_t commonData::ignoreN=0;
 int32_t commonData::fourColOutput=0;
 int32_t commonData::lenInHeader=0;
 int32_t commonData::relQueryPos=0;
@@ -138,7 +136,7 @@ class seqFileReadInfo {
                   case 'A':
                   case 'a':
                       binReads[binReadsLocation] <<= 2; // shift left by 2 bits
-                      if (commonData::ignoreN && blockNCount){
+                      if (blockNCount){
                          blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
                          blockNCount=0;
                       }
@@ -147,7 +145,7 @@ class seqFileReadInfo {
                   case 'c':
                       binReads[binReadsLocation] <<= 2;
                       binReads[binReadsLocation] |= 1;
-                      if (commonData::ignoreN && blockNCount){
+                      if (blockNCount){
                          blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
                          blockNCount=0;
                       }
@@ -156,7 +154,7 @@ class seqFileReadInfo {
                   case 'g':
                       binReads[binReadsLocation] <<= 2;
                       binReads[binReadsLocation] |= 2;
-                      if (commonData::ignoreN && blockNCount){
+                      if (blockNCount){
                          blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
                          blockNCount=0;
                       }
@@ -165,7 +163,7 @@ class seqFileReadInfo {
                   case 't':
                       binReads[binReadsLocation] <<= 2;
                       binReads[binReadsLocation] |= 3;
-                      if (commonData::ignoreN && blockNCount){
+                      if (blockNCount){
                          blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
                          blockNCount=0;
                       }
@@ -274,7 +272,7 @@ class seqFileReadInfo {
           binReadSize = floor((size+numSequences*RANDOM_SEQ_SIZE+commonData::d)/32+4);
           binReads = new uint64_t[binReadSize+1];
           memset(binReads, 0, sizeof(uint64_t)*(binReadSize+1));
-          if (numSequences && commonData::ignoreN)
+          if (numSequences)
               blockOfNs.reserve(numSequences+10);
           return size;
       }
@@ -410,7 +408,7 @@ class seqFileReadInfo {
                               binReadsLocation++;
                               binReads[binReadsLocation]=0;
                           }
-                          if (commonData::ignoreN && blockNCount){
+                          if (blockNCount){
                               blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
                               blockNCount=0;
                           }
@@ -433,7 +431,7 @@ class seqFileReadInfo {
                   binReadsLocation++;
                   binReads[binReadsLocation]=0;
               }
-              if (commonData::ignoreN && blockNCount){
+              if (blockNCount){
                   blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
                   blockNCount=0;
               }
@@ -533,20 +531,18 @@ class seqFileReadInfo {
 
 
 
-      void generateRevComplement(uint32_t revComplement) {
+      void generateRevComplement() {
           string line,content;
           fstream revFile;
 
-          if (revComplement) {
-              char buffer[256];
-              memset(buffer,0,256);
-              sprintf(buffer, "%s/revComp", commonData::nucmer_path);
-              revFile.open(buffer, ios::out);
-              if (!revFile.is_open())
-              {
-                  cout << "ERROR: unable to open temporary reverse complement file" << endl;
-                  exit( EXIT_FAILURE );
-              }
+          char buffer[256];
+          memset(buffer,0,256);
+          sprintf(buffer, "%s/revComp", commonData::nucmer_path);
+          revFile.open(buffer, ios::out);
+          if (!revFile.is_open())
+          {
+              cout << "ERROR: unable to open temporary reverse complement file" << endl;
+              exit( EXIT_FAILURE );
           }
 
           clearFileFlag();
@@ -556,37 +552,28 @@ class seqFileReadInfo {
                   if(!strName.empty()) {
                       numSequences++;
                       size += RANDOM_SEQ_SIZE;
-                      if (revComplement){
-                          writeReverseComplementString(strName, content, revFile);
-                          content.clear();
-                      }
+                      writeReverseComplementString(strName, content, revFile);
+                      content.clear();
                       strName.clear();
                   }
                   if(!line.empty())
                       strName=line.substr(1);
               } else if( !strName.empty() ) {
-                  if (revComplement) {
-                      content += "\n";
-                      content += line;
-                  }
+                  content += "\n";
+                  content += line;
               }
           }
           // Catches the last sequence line
           if( !strName.empty() ) {
               size += (line.length()+1);
-              if (revComplement) {
-                  content += "\n";
-                  content += line;
-              }
+              content += "\n";
+              content += line;
               numSequences++;
-              if (revComplement){
-                  writeReverseComplementString(strName, content, revFile);
-                  content.clear();
-              }
+              writeReverseComplementString(strName, content, revFile);
+              content.clear();
               strName.clear();
           }
-          if (revComplement)
-              revFile.close();
+          revFile.close();
       }
 };
 
@@ -637,16 +624,13 @@ class tmpFilesInfo {
       return false;
     }
 
-    void writeToFile(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR, uint32_t &revComplement) {
+    void writeToFile(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR) {
         MemExt m;
         m.lQ=lQ;
         m.lR=lR;
         m.rQ=rQ;
         m.rR=rR;
-        if (IS_MATCH_BOTH_DEF(revComplement))
-            TmpFiles[m.lQ/numMemsInFile+NUM_TMP_FILES].write((char *)&m, sizeof(MemExt));
-        else
-            TmpFiles[m.lQ/numMemsInFile].write((char *)&m, sizeof(MemExt));
+        TmpFiles[m.lQ/numMemsInFile].write((char *)&m, sizeof(MemExt));
     }
 
     void writeToVector(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR) {
@@ -734,7 +718,7 @@ class tmpFilesInfo {
         return TmpFiles[fIndex];
     }
 
-    bool writeMemInTmpFiles(uint64_t &lRef, uint64_t &rRef, uint64_t &lQue, uint64_t &rQue, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile, uint32_t &revComplement) {
+    bool writeMemInTmpFiles(uint64_t &lRef, uint64_t &rRef, uint64_t &lQue, uint64_t &rQue, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile) {
        MemExt m;
        uint64_t currPosQ = CHARS2BITS(QueryFile.getCurrPos());
        uint64_t currPosR = CHARS2BITS(RefFile.getCurrPos());
@@ -744,31 +728,23 @@ class tmpFilesInfo {
                writeToVector(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef);
            }else {
                #pragma omp critical(writeFile)
-               writeToFile(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef, revComplement);
+               writeToFile(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef);
            }
            return true;
        }else
            return false;
     }
 
-    void printQueryHeader(vector<seqData>::iterator &itQ, uint32_t &revComplement)
+    void printQueryHeader(vector<seqData>::iterator &itQ)
     {
-        if (revComplement & 0x1){
-            if (commonData::lenInHeader) {
-                cout << "> " << (*itQ).seq << " Reverse" << " Len = " << ((*itQ).end-(*itQ).start+2)/2 << "\n";
-            }else{
-                cout << "> " << (*itQ).seq << " Reverse" << "\n";
-            }
+        if (commonData::lenInHeader) {
+            cout << "> " << (*itQ).seq << " Reverse" << " Len = " << ((*itQ).end-(*itQ).start+2)/2 << "\n";
         }else{
-            if (commonData::lenInHeader){
-                cout << "> " << (*itQ).seq << " Len = " << ((*itQ).end-(*itQ).start+2)/2 << "\n";
-            }else{
-                cout << "> " << (*itQ).seq << "\n";
-            }
+            cout << "> " << (*itQ).seq << " Reverse" << "\n";
         }
     }
 
-    void printMemOnTerminal(vector<seqData> &refSeqInfo, vector<seqData> &querySeqInfo, MemExt &m, uint32_t &revComplement) {
+    void printMemOnTerminal(vector<seqData> &refSeqInfo, vector<seqData> &querySeqInfo, MemExt &m) {
         uint64_t &lRef = m.lR;
         uint64_t &rRef = m.rR;
         uint64_t &lQue = m.lQ;
@@ -782,11 +758,11 @@ class tmpFilesInfo {
         if (!lRef && !rRef && !lQue && !rQue) {
             /* No matches found - simply return */
             if (!flag){
-                printQueryHeader(itQ, revComplement);
+                printQueryHeader(itQ);
             }
             while(itQ != --querySeqInfo.end()){
                 ++itQ;
-                printQueryHeader(itQ, revComplement);
+                printQueryHeader(itQ);
             }
             itQ=querySeqInfo.begin();
             flag=0;
@@ -839,13 +815,13 @@ class tmpFilesInfo {
 
         /* Print first Query sequence */
         if (!flag){
-            printQueryHeader(itQ, revComplement);
+            printQueryHeader(itQ);
             flag=1;
         }
         /* Process relative position for Query sequence */
         while(lQue >= (*itQ).end){
             ++itQ;
-            printQueryHeader(itQ, revComplement);
+            printQueryHeader(itQ);
         }
         if ((*itQ).start <= lQue && (*itQ).end >= rQue){
             // MEM within acutal sequence
@@ -880,12 +856,12 @@ class tmpFilesInfo {
 
         if (rRef-lRef+2 >= static_cast<uint64_t>(commonData::minMemLen)){
            if (refSeqInfo.size() == 1 && !commonData::fourColOutput) {
-               if ((revComplement & 0x1) && commonData::relQueryPos)
+               if (commonData::relQueryPos)
                    cout << " " << setw(15) << ((lRef+2)/2) <<  setw(15) << ((*itQ).end-(*itQ).start-lQue+2)/2 << setw(15) << ((rRef-lRef+2)/2) << "\n";
                else
                    cout << " " << setw(15) << ((lRef+2)/2) <<  setw(15) << ((lQue+2)/2) << setw(15) << ((rRef-lRef+2)/2) << "\n";
            }else{
-               if ((revComplement & 0x1) && commonData::relQueryPos) {
+               if (commonData::relQueryPos) {
                    cout << " " << setw(30) << std::left <<(*itR).seq << setw(15) << ((lRef+2)/2) <<  setw(15) << ((*itQ).end-(*itQ).start-lQue+2)/2 << setw(15) << ((rRef-lRef+2)/2) << "\n";
                }else{
                    cout << " " << setw(30) << std::left <<(*itR).seq << setw(15) << ((lRef+2)/2) <<  setw(15) << ((lQue+2)/2) << setw(15) << ((rRef-lRef+2)/2) << "\n";
@@ -894,7 +870,7 @@ class tmpFilesInfo {
         }
     }
 
-    void mergeMemExtVector (uint32_t &revComplement) {
+    void mergeMemExtVector () {
         int flag=0;
         MemExt m;
         if (commonData::d==1 && commonData::numThreads==1)
@@ -970,7 +946,7 @@ class tmpFilesInfo {
 
             for (vector<MemExt>::iterator it=MemExtVec.begin(); it != last; ++it) {
                 if ((*it).lQ || (*it).rQ || (*it).lR || (*it).rR )
-                    writeToFile((*it).lQ, (*it).rQ, (*it).lR, (*it).rR, revComplement);
+                    writeToFile((*it).lQ, (*it).rQ, (*it).lR, (*it).rR);
             }
         }
         MemExtVec.clear();
@@ -1023,7 +999,7 @@ class tmpFilesInfo {
         remove(buffer);
     }
 
-    void removeDuplicates(vector<seqData> &refSeqInfo, vector<seqData> &querySeqInfo, uint32_t revComplement) {
+    void removeDuplicates(vector<seqData> &refSeqInfo, vector<seqData> &querySeqInfo) {
         streambuf *coutbuf=std::cout.rdbuf();
         int numFiles=0;
         MemExt m;
@@ -1031,35 +1007,17 @@ class tmpFilesInfo {
         char buffer[256];
         memset(buffer,0,256);
 
-        if(IS_MATCH_BOTH_DEF(revComplement))
-            numFiles=2*NUM_TMP_FILES;
-        else
-            numFiles=NUM_TMP_FILES;
+        numFiles=NUM_TMP_FILES;
 
 
         openFiles(ios::in|ios::binary, numFiles);
 
         sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles);
-        if (IS_MATCH_BOTH_DEF(revComplement))
-            TmpFiles[numFiles].open(buffer, ios::out|ios::trunc);
-        else
-            remove(buffer);
+        remove(buffer);
 
 
         sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles+1);
-        if (IS_MATCH_BOTH_DEF(revComplement))
-            TmpFiles[numFiles+1].open(buffer, ios::out|ios::trunc);
-        else
-            remove(buffer);
-
-        /* Indication that reverse complement is being processed */
-        if (IS_MATCH_REV_DEF(revComplement))
-            revComplement|=0x1;
-
-        /* Redirect std::cout to a file */
-        if (IS_MATCH_BOTH_DEF(revComplement)){
-            std::cout.rdbuf(TmpFiles[numFiles].rdbuf());
-        }
+        remove(buffer);
 
         for (int32_t i=0;i<numFiles;i++){
             vector<MemExt>::iterator last;
@@ -1067,9 +1025,7 @@ class tmpFilesInfo {
             if (i==NUM_TMP_FILES) {
                 /* Output any unsued query sequence */
                 m.lR=m.lQ=m.rR=m.rQ=0;
-                printMemOnTerminal(refSeqInfo, querySeqInfo, m, revComplement);
-                /* Processing reverse complement files now*/
-                revComplement|=0x1;
+                printMemOnTerminal(refSeqInfo, querySeqInfo, m);
                 /* Redirect output to reverse complement file */
                 std::cout.rdbuf(TmpFiles[numFiles+1].rdbuf());
             }
@@ -1082,27 +1038,18 @@ class tmpFilesInfo {
             TmpFiles[i].close();
             remove(buffer);
             for (vector<MemExt>::iterator it=MemExtVec.begin(); it!=last; ++it) {
-                printMemOnTerminal(refSeqInfo, querySeqInfo, *it, revComplement);
+                printMemOnTerminal(refSeqInfo, querySeqInfo, *it);
             }
             MemExtVec.clear();
         }
 
         /* Output any unsued query sequence */
         m.lR=m.lQ=m.rR=m.rQ=0;
-        printMemOnTerminal(refSeqInfo, querySeqInfo, m, revComplement);
+        printMemOnTerminal(refSeqInfo, querySeqInfo, m);
 
-        /* Restore std::cout */
-        if (IS_MATCH_BOTH_DEF(revComplement)){
-            TmpFiles[numFiles].close();
-            TmpFiles[numFiles+1].close();
-            std::cout.rdbuf(coutbuf);
-            outputInMummerFormat();
-        }
+        sprintf(buffer, "%s/revComp", commonData::nucmer_path);
+        remove(buffer);
 
-        if(revComplement) {
-            sprintf(buffer, "%s/revComp", commonData::nucmer_path);
-            remove(buffer);
-        }
         sprintf(buffer, "%s", commonData::nucmer_path);
         remove(buffer);
 
