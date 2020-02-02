@@ -89,8 +89,10 @@ class mapObject {
       }
 };
 
+
 class seqFileReadInfo {
-      fstream file;
+      fstream files[2];
+      int numFiles;
       uint64_t size;
       string strTmp, strName;
       uint64_t binReadSize;
@@ -219,9 +221,31 @@ class seqFileReadInfo {
           binReadsLocation=0;
           numSequences=0;
           totalBases=0;
-          file.open(str, ios::in);
-          if(!file.is_open()) {
+          numFiles=1;
+          files[0].open(str, ios::in);
+          if(!files[0].is_open()) {
               cout << "ERROR: unable to open "<< str << " file" << endl;
+              exit( EXIT_FAILURE );
+          }
+      }
+
+      seqFileReadInfo(string str1, string str2)
+      {
+          size=0;
+          currPos=0;
+          binReadSize=0;
+          binReadsLocation=0;
+          numSequences=0;
+          totalBases=0;
+          numFiles=2;
+          files[0].open(str1, ios::in);
+          if(!files[0].is_open()) {
+              cout << "ERROR: unable to open "<< str1 << " file f1" << endl;
+              exit( EXIT_FAILURE );
+          }
+          files[1].open(str2, ios::in);
+          if(!files[1].is_open()) {
+              cout << "ERROR: unable to open "<< str2 << " file f2" << endl;
               exit( EXIT_FAILURE );
           }
       }
@@ -231,10 +255,12 @@ class seqFileReadInfo {
       }
 
       void openFile(string s){
-          file.open(s, ios::in);
-          if(!file.is_open()) {
-              cout << "ERROR: unable to open "<< s << " file" << endl;
-              exit( EXIT_FAILURE );
+          for (int i=0;i<numFiles;++i) {
+              files[i].open(s, ios::in);
+              if(!files[i].is_open()) {
+                  cout << "ERROR: unable to open "<< s << " file" << endl;
+                  exit( EXIT_FAILURE );
+              }
           }
       }
 
@@ -242,11 +268,13 @@ class seqFileReadInfo {
           char buffer[256];
           memset(buffer,0,256);
           sprintf(buffer, "%s/revComp", commonData::nucmer_path);
-          file.close();
+          for (int i=0;i<numFiles;++i)
+              files[i].close();
           openFile(buffer);
       }
       void closeFile() {
-          file.close();
+          for (int i=0;i<numFiles;++i)
+              files[i].close();
       }
 
       void destroy() {
@@ -262,8 +290,10 @@ class seqFileReadInfo {
 
       void clearFileFlag()
       {
-          file.clear();
-          file.seekg(0, ios::beg);
+          for (int i=0;i<numFiles;++i) {
+              files[i].clear();
+              files[i].seekg(0, ios::beg);
+          }
       }
 
       uint64_t allocBinArray()
@@ -389,12 +419,13 @@ class seqFileReadInfo {
           uint64_t blockNCount=0;
           int minSize = commonData::minMemLen/2-1;
           uint64_t sz=size+minSize;
+          int it = 0;
           /* Process anything remaining from the last iteration */
           processTmpString(sz, blockNCount);
 
-          while(getline( file, line ).good() ){
+          while(getline( files[it], line ).good() && it != numFiles){
               if(line[0] == '>' || (totalBases == sz)){
-                  if( !strName.empty()){ // Process what we read from the last entry
+                  if( !strName.empty()){
                      if(line[0] != '>') {
                           processInput(line, sz, blockNCount);
                       }else {
@@ -421,9 +452,10 @@ class seqFileReadInfo {
               } else if( !strName.empty() ){
                   processInput(line, sz, blockNCount);
               }
+              ++it;
           }
 
-          if( !strName.empty() ){ // Process what we read from the last entry
+          if( !strName.empty() ){
               if ((totalBases%32)!=0)
               {
                   uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
@@ -495,45 +527,10 @@ class seqFileReadInfo {
           file << content ;
       }
 
-      void generateSeqPos(vector<seqData> &vecSeqInfo) {
-          seqData s;
-          uint64_t i=0,j=0;
-          string line;
-          clearFileFlag();
-          while(getline(file, line).good() ){
-              if(line[0] == '>'){
-                  if(!strName.empty()) {
-                      s.start=CHARS2BITS(j);
-                      s.end=CHARS2BITS(i-1);
-                      s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
-                      vecSeqInfo.push_back(s);
-                      s.seq.clear();
-                      i+=RANDOM_SEQ_SIZE;
-                      j=i;
-                      strName.clear();
-                  }
-                  if(!line.empty())
-                      strName=line.substr(1);
-              } else if( !strName.empty() ) {
-                  i+=line.length();
-              }
-          }
-          if( !strName.empty() ) {
-              i+=line.length();
-              s.start=CHARS2BITS(j);
-              s.end=CHARS2BITS(i-1);
-              s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
-              vecSeqInfo.push_back(s);
-              s.seq.clear();
-              strName.clear();
-          }
-      }
-
-
-
       void generateRevComplement() {
           string line,content;
           fstream revFile;
+          int it = 0;
 
           char buffer[256];
           memset(buffer,0,256);
@@ -546,7 +543,8 @@ class seqFileReadInfo {
           }
 
           clearFileFlag();
-          while(getline(file, line).good() ){
+
+          while(getline( files[it], line ).good() && it != numFiles){
               size += (line.length()+1);
               if(line[0] == '>'){
                   if(!strName.empty()) {
@@ -562,6 +560,7 @@ class seqFileReadInfo {
                   content += "\n";
                   content += line;
               }
+              ++it;
           }
           // Catches the last sequence line
           if( !strName.empty() ) {

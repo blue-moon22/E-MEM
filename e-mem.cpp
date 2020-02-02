@@ -429,13 +429,12 @@ bool is_numeric(const string &str)
 
 void checkCommandLineOptions(uint32_t &options)
 {
-    if (!IS_REF_FILE_DEF(options)){
-        cout << "ERROR: reference file must be passed!" << endl;
-        exit(EXIT_FAILURE);
-    }
-    if (!IS_QUERY_FILE_DEF(options)){
-        cout << "ERROR: query file must be passed!" << endl;
-        exit(EXIT_FAILURE);
+  // TODO
+    if (!IS_FASTAU_DEF(options)){
+        if (!IS_FASTA1_DEF(options) || !IS_FASTA2_DEF(options)){
+            cout << "ERROR: both f1 forward and f2 reverse fasta files or fu unpaired fasta file must be passed!" << endl;
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (IS_SPLIT_SIZE_DEF(options)){
@@ -491,9 +490,12 @@ void print_help_msg()
     cout << "E-MEM finds and outputs the position and length of all maximal" << endl;
     cout << "exact matches (MEMs) between <query-file> and <reference-file>" << endl;
     cout << endl;
-    cout << "Usage: e-mem [options]  <reference-file>  <query-file>" << endl;
+    cout << "Usage: e-mem [options]" << endl;
     cout << endl;
     cout << "Options:" << endl;
+    cout << "-f1\t<filename>\t" << "fasta file with forward paired-end reads" << endl;
+    cout << "-f2\t<filename>\t" << "fasta file with reverse paired-end reads" << endl;
+    cout << "-fu\t<filename>\t" << "fasta file with unpaired reads" << endl;
     cout << "-l\t" << "set the minimum length of a match. The default length" << endl;
     cout << "  \tis 50" << endl;
     cout << "-c\t" << "report the query-position of a reverse complement match" << endl;
@@ -510,7 +512,7 @@ int main (int argc, char *argv[])
 {
     int32_t i=0, n=1;
     uint32_t options=0;
-    seqFileReadInfo RefFile, QueryFile;
+    seqFileReadInfo seqFile;
 
     // Check Arguments
     if (argc==1 || argc==2){
@@ -520,7 +522,40 @@ int main (int argc, char *argv[])
 
     while(argv[n]) {
 
-        if(boost::equals(argv[n],"-l")){
+        if(boost::equals(argv[n], "-f1")){
+            if (IS_FASTA1_DEF(options)){
+              cout << "ERROR: f1 argument passed multiple times!" << endl;
+              exit(EXIT_FAILURE);
+            }
+            if (IS_FASTAU_DEF(options)){
+              cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
+              exit(EXIT_FAILURE);
+            }
+            SET_FASTA1(options);
+            n+=2;
+        }else if(boost::equals(argv[n], "-f2")){
+            if (IS_FASTA2_DEF(options)){
+              cout << "ERROR: f2 argument passed multiple times!" << endl;
+              exit(EXIT_FAILURE);
+            }
+            if (IS_FASTAU_DEF(options)){
+              cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
+              exit(EXIT_FAILURE);
+            }
+            SET_FASTA2(options);
+            n+=2;
+        }else if(boost::equals(argv[n], "-fu")){
+            if (IS_FASTAU_DEF(options)){
+              cout << "ERROR: fu argument passed multiple times!" << endl;
+              exit(EXIT_FAILURE);
+            }
+            if (IS_FASTA1_DEF(options) || IS_FASTA2_DEF(options)){
+              cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
+              exit(EXIT_FAILURE);
+            }
+            SET_FASTAU(options);
+            n+=2;
+        }else if(boost::equals(argv[n],"-l")){
             if (IS_LENGTH_DEF(options)) {
                 cout << "ERROR: Length argument passed multiple times!" << endl;
                 exit(EXIT_FAILURE);
@@ -569,22 +604,7 @@ int main (int argc, char *argv[])
             commonData::kmerSize = 2*std::stoi(argv[n+1]);
             n+=2;
         }else if (argv[n][0] != '-'){
-            /* These are files */
-            if (!IS_REF_FILE_DEF(options)) {
-                /* Open referencead file provided by the user. */
-                SET_REF_FILE(options);
-                RefFile.openFile(argv[n]);
-                n+=1;
-                continue;
-            }
-            if (!IS_QUERY_FILE_DEF(options)) {
-                /* Open query file provided by the user. */
-                SET_QUERY_FILE(options);
-                QueryFile.openFile(argv[n]);
-                n+=1;
-                continue;
-            }
-            cout << "ERROR: More input files than expected!" << endl;
+            cout << "ERROR: option must start with '-'!" << endl;
             exit(EXIT_FAILURE);
         }else if (boost::equals(argv[n],"-c")){
             if (IS_RELREV_QUEPOS_DEF(options)) {
@@ -637,6 +657,21 @@ int main (int argc, char *argv[])
 
     checkCommandLineOptions(options);
 
+    for (int n=1;n<argc;++n) {
+        if(boost::equals(argv[n], "-f1")){
+            string filename1 = argv[n+1];
+            while(argv[n]) {
+                if(boost::equals(argv[n], "-f2"))
+                    seqFileReadInfo seqFile(filename1, argv[n+1]);
+                    break;
+                n=+1;
+            }
+        }else if (boost::equals(argv[n], "-fu")){
+            seqFileReadInfo seqFile(argv[n+1]);
+            break;
+        }
+    }
+
     /*
      * Check if e-mem if being run from QUAST
      */
@@ -644,58 +679,9 @@ int main (int argc, char *argv[])
 
     tmpFilesInfo arrayTmpFile(NUM_TMP_FILES+2);
     arrayTmpFile.openFiles(ios::out|ios::binary, NUM_TMP_FILES+2);
-
-    RefFile.generateRevComplement(); // This routine also computers size and num sequences
-    QueryFile.generateRevComplement(); // Reverse complement only for query
-
-    /* Only reverse complement matches */
-    QueryFile.setReverseFile();
-
-    arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(), QueryFile.getNumSequences());
-    RefFile.allocBinArray();
-    RefFile.clearFileFlag();
-
-    while (true)
-    {
-        for (i=0; i<commonData::d; i++) {
-            if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
-                processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
-                RefFile.setCurrPos(); // Add size (the number of nucl in the file)
-                RefFile.clearMapForNs(); // clear block of Ns from memory
-            }
-            else
-                break;
-        }
-
-        /*
-         * Process MemExt list and write to file
-         */
-
-        arrayTmpFile.mergeMemExtVector();
-        break;
-    }
-
-    /*
-     * Free up the allocated arrays
-     */
-    arrayTmpFile.closeFiles(NUM_TMP_FILES);
-    RefFile.destroy();
-    QueryFile.destroy();
-
-    /*
-     * Populate sequence information in vectors. Use this to get MEM
-     * positions relative to the original sequences.
-     */
-    vector<seqData> refSeqInfo;
-    vector<seqData> querySeqInfo;
-    refSeqInfo.reserve(RefFile.getNumSequences());
-    querySeqInfo.reserve(QueryFile.getNumSequences());
-    RefFile.generateSeqPos(refSeqInfo);
-    QueryFile.generateSeqPos(querySeqInfo);
-    RefFile.closeFile();
-    QueryFile.closeFile();
-
-    arrayTmpFile.removeDuplicates(refSeqInfo, querySeqInfo);
-    fflush(0);
+    /* TODO
+    seqFile.generateRevComplement(); // This routine also computers size and num sequences
+    seqFile.generateRevComplement(); // Reverse complement only for query
+    */
     return 0;
 }

@@ -27,16 +27,22 @@
 /*
  * Command line argument control
  */
-#define LENGTH			0x00000001
-#define REF_FILE		0x00000002
-#define QUERY_FILE		0x00000004
-#define SPLIT_SIZE		0x00000008
-#define KMER_SIZE		0x00000010
-#define NUM_THREADS		0x00000020
-#define REL_REV_QUEPOS		0x00000040
-#define FOUR_COL_OUTPUT		0x00000080
-#define LEN_IN_HEADER		0x00000100
+#define FASTA1  0x00000001
+#define FASTA2  0x00000002
+#define FASTAU  0x00000004
+#define LENGTH			0x00000008
+#define REF_FILE		0x00000010
+#define QUERY_FILE		0x00000020
+#define SPLIT_SIZE		0x00000040
+#define KMER_SIZE		0x00000080
+#define NUM_THREADS		0x00000100
+#define REL_REV_QUEPOS		0x00000200
+#define FOUR_COL_OUTPUT		0x00000400
+#define LEN_IN_HEADER		0x00000800
 
+#define IS_FASTA1_DEF(x)  (x & FASTA1)
+#define IS_FASTA2_DEF(x)  (x & FASTA2)
+#define IS_FASTAU_DEF(x)  (x & FASTAU)
 #define IS_LENGTH_DEF(x)	(x & LENGTH)
 #define IS_REF_FILE_DEF(x)	(x & REF_FILE)
 #define IS_QUERY_FILE_DEF(x)	(x & QUERY_FILE)
@@ -47,9 +53,12 @@
 #define IS_FCOL_OUTPUT_DEF(x)	(x & FOUR_COL_OUTPUT)
 #define IS_LEN_IN_HEADER_DEF(x)	(x & LEN_IN_HEADER)
 
+#define SET_FASTA1(x)   (x |= FASTA1)
+#define SET_FASTA2(x)   (x |= FASTA2)
+#define SET_FASTAU(x)   (x |= FASTAU)
 #define SET_LENGTH(x)		(x |= LENGTH)
-#define SET_REF_FILE(x)		(x |= REF_FILE)
-#define SET_QUERY_FILE(x)	(x |= QUERY_FILE)
+#define SET_REF_FILE(x)		(x |= REF_FILE) // TODO
+#define SET_QUERY_FILE(x)	(x |= QUERY_FILE) // TODO
 #define SET_SPLIT_SIZE(x)	(x |= SPLIT_SIZE)
 #define SET_KMER_SIZE(x)	(x |= KMER_SIZE)
 #define SET_NUM_THREADS(x)	(x |= NUM_THREADS)
