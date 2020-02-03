@@ -512,7 +512,8 @@ int main (int argc, char *argv[])
 {
     int32_t i=0, n=1;
     uint32_t options=0;
-    seqFileReadInfo seqFile;
+//    seqFileReadInfo QueryFile, RefFile;
+    string fasta1, fasta2, fastaU;
 
     // Check Arguments
     if (argc==1 || argc==2){
@@ -532,6 +533,7 @@ int main (int argc, char *argv[])
               exit(EXIT_FAILURE);
             }
             SET_FASTA1(options);
+            fasta1 = argv[n+1];
             n+=2;
         }else if(boost::equals(argv[n], "-f2")){
             if (IS_FASTA2_DEF(options)){
@@ -543,6 +545,7 @@ int main (int argc, char *argv[])
               exit(EXIT_FAILURE);
             }
             SET_FASTA2(options);
+            fasta2 = argv[n+1];
             n+=2;
         }else if(boost::equals(argv[n], "-fu")){
             if (IS_FASTAU_DEF(options)){
@@ -554,6 +557,7 @@ int main (int argc, char *argv[])
               exit(EXIT_FAILURE);
             }
             SET_FASTAU(options);
+            fastaU = argv[n+1];
             n+=2;
         }else if(boost::equals(argv[n],"-l")){
             if (IS_LENGTH_DEF(options)) {
@@ -657,31 +661,22 @@ int main (int argc, char *argv[])
 
     checkCommandLineOptions(options);
 
-    for (int n=1;n<argc;++n) {
-        if(boost::equals(argv[n], "-f1")){
-            string filename1 = argv[n+1];
-            while(argv[n]) {
-                if(boost::equals(argv[n], "-f2"))
-                    seqFileReadInfo seqFile(filename1, argv[n+1]);
-                    break;
-                n=+1;
-            }
-        }else if (boost::equals(argv[n], "-fu")){
-            seqFileReadInfo seqFile(argv[n+1]);
-            break;
-        }
-    }
-
-    /*
-     * Check if e-mem if being run from QUAST
-     */
+    // Open tmp files
     sprintf(commonData::nucmer_path, "%s/%d_tmp", getenv("NUCMER_E_MEM_OUTPUT_DIRPATH")?getenv("NUCMER_E_MEM_OUTPUT_DIRPATH"):".",getpid());
 
     tmpFilesInfo arrayTmpFile(NUM_TMP_FILES+2);
     arrayTmpFile.openFiles(ios::out|ios::binary, NUM_TMP_FILES+2);
-    /* TODO
-    seqFile.generateRevComplement(); // This routine also computers size and num sequences
-    seqFile.generateRevComplement(); // Reverse complement only for query
-    */
+
+    if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
+        cout << "paired reads defined" << endl;
+        seqFileReadInfo QueryFile(fasta1, fasta2);
+        seqFileReadInfo RefFile(fasta1, fasta2);
+        RefFile.generateRevComplement(); // This routine also computes size and num sequences
+    } else if (IS_FASTAU_DEF(options)) {
+        seqFileReadInfo QueryFile(fastaU);
+        seqFileReadInfo RefFile(fastaU);
+    }
+
+
     return 0;
 }

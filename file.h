@@ -91,8 +91,8 @@ class mapObject {
 
 
 class seqFileReadInfo {
-      fstream files[2];
-      int numFiles;
+      fstream file1, file2;
+      int numSeqFiles;
       uint64_t size;
       string strTmp, strName;
       uint64_t binReadSize;
@@ -203,7 +203,7 @@ class seqFileReadInfo {
       uint64_t *binReads;
       uint64_t totalBases;
       std::vector <mapObject> blockOfNs;
-
+/*
       seqFileReadInfo() {
           size=0;
           currPos=0;
@@ -211,8 +211,9 @@ class seqFileReadInfo {
           binReadsLocation=0;
           numSequences=0;
           totalBases=0;
+          numSeqFiles=0;
       }
-
+*/
       seqFileReadInfo(string str)
       {
           size=0;
@@ -221,10 +222,10 @@ class seqFileReadInfo {
           binReadsLocation=0;
           numSequences=0;
           totalBases=0;
-          numFiles=1;
-          files[0].open(str, ios::in);
-          if(!files[0].is_open()) {
-              cout << "ERROR: unable to open "<< str << " file" << endl;
+          numSeqFiles=1;
+          file1.open(str, ios::in);
+          if(!file1.is_open()) {
+              cout << "ERROR: unable to open " << str << " file" << endl;
               exit( EXIT_FAILURE );
           }
       }
@@ -237,15 +238,15 @@ class seqFileReadInfo {
           binReadsLocation=0;
           numSequences=0;
           totalBases=0;
-          numFiles=2;
-          files[0].open(str1, ios::in);
-          if(!files[0].is_open()) {
-              cout << "ERROR: unable to open "<< str1 << " file f1" << endl;
+          numSeqFiles=2;
+          file1.open(str1, ios::in);
+          if(!file1.is_open()) {
+              cout << "ERROR: unable to open " << str1 << " file" << endl;
               exit( EXIT_FAILURE );
           }
-          files[1].open(str2, ios::in);
-          if(!files[1].is_open()) {
-              cout << "ERROR: unable to open "<< str2 << " file f2" << endl;
+          file2.open(str2, ios::in);
+          if(!file2.is_open()) {
+              cout << "ERROR: unable to open " << str2 << " file" << endl;
               exit( EXIT_FAILURE );
           }
       }
@@ -254,27 +255,24 @@ class seqFileReadInfo {
           return numSequences;
       }
 
-      void openFile(string s){
-          for (int i=0;i<numFiles;++i) {
-              files[i].open(s, ios::in);
-              if(!files[i].is_open()) {
-                  cout << "ERROR: unable to open "<< s << " file" << endl;
-                  exit( EXIT_FAILURE );
-              }
+      void openFile(string s, fstream &file){
+          file.open(s, ios::in);
+          if(!file.is_open()) {
+              cout << "ERROR: unable to open "<< s << " file" << endl;
+              exit( EXIT_FAILURE );
           }
       }
 
-      void setReverseFile() {
+      void setReverseFile(fstream &file) {
           char buffer[256];
           memset(buffer,0,256);
           sprintf(buffer, "%s/revComp", commonData::nucmer_path);
-          for (int i=0;i<numFiles;++i)
-              files[i].close();
-          openFile(buffer);
+          file.close();
+          openFile(buffer, file);
       }
-      void closeFile() {
-          for (int i=0;i<numFiles;++i)
-              files[i].close();
+
+      void closeFile(fstream &file) {
+          file.close();
       }
 
       void destroy() {
@@ -290,9 +288,13 @@ class seqFileReadInfo {
 
       void clearFileFlag()
       {
-          for (int i=0;i<numFiles;++i) {
-              files[i].clear();
-              files[i].seekg(0, ios::beg);
+          if (numSeqFiles >= 1){
+              file1.clear();
+              file1.seekg(0, ios::beg);
+              if (numSeqFiles == 2){
+                  file2.clear();
+                  file2.seekg(0, ios::beg);
+              }
           }
       }
 
@@ -423,36 +425,69 @@ class seqFileReadInfo {
           /* Process anything remaining from the last iteration */
           processTmpString(sz, blockNCount);
 
-          while(getline( files[it], line ).good() && it != numFiles){
-              if(line[0] == '>' || (totalBases == sz)){
-                  if( !strName.empty()){
-                     if(line[0] != '>') {
-                          processInput(line, sz, blockNCount);
-                      }else {
-                          processInput(randomStr(), sz, blockNCount);
-                      }
-                      if (totalBases == sz) {
-                          if ((totalBases%32)!=0)
-                          {
-                              uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
-                              binReads[binReadsLocation] <<= (DATATYPE_WIDTH-offset);
-                              binReadsLocation++;
-                              binReads[binReadsLocation]=0;
+          if (numSeqFiles >= 1){
+              while(getline( file1, line ).good()){
+                  if(line[0] == '>' || (totalBases == sz)){
+                      if( !strName.empty()){
+                         if(line[0] != '>') {
+                              processInput(line, sz, blockNCount);
+                          }else {
+                              processInput(randomStr(), sz, blockNCount);
                           }
-                          if (blockNCount){
-                              blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
-                              blockNCount=0;
+                          if (totalBases == sz) {
+                              if ((totalBases%32)!=0)
+                              {
+                                  uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
+                                  binReads[binReadsLocation] <<= (DATATYPE_WIDTH-offset);
+                                  binReadsLocation++;
+                                  binReads[binReadsLocation]=0;
+                              }
+                              if (blockNCount){
+                                  blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
+                                  blockNCount=0;
+                              }
+                              return true;
                           }
-                          return true;
                       }
+                      if( !line.empty() ){
+                          strName = line.substr(1);
+                      }
+                  } else if( !strName.empty() ){
+                      processInput(line, sz, blockNCount);
                   }
-                  if( !line.empty() ){
-                      strName = line.substr(1);
-                  }
-              } else if( !strName.empty() ){
-                  processInput(line, sz, blockNCount);
               }
-              ++it;
+              if (numSeqFiles == 2) {
+                  while(getline( file2, line ).good()){
+                      if(line[0] == '>' || (totalBases == sz)){
+                          if( !strName.empty()){
+                             if(line[0] != '>') {
+                                  processInput(line, sz, blockNCount);
+                              }else {
+                                  processInput(randomStr(), sz, blockNCount);
+                              }
+                              if (totalBases == sz) {
+                                  if ((totalBases%32)!=0)
+                                  {
+                                      uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
+                                      binReads[binReadsLocation] <<= (DATATYPE_WIDTH-offset);
+                                      binReadsLocation++;
+                                      binReads[binReadsLocation]=0;
+                                  }
+                                  if (blockNCount){
+                                      blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
+                                      blockNCount=0;
+                                  }
+                                  return true;
+                              }
+                          }
+                          if( !line.empty() ){
+                              strName = line.substr(1);
+                          }
+                      } else if( !strName.empty() ){
+                          processInput(line, sz, blockNCount);
+                      }
+                  }
+              }
           }
 
           if( !strName.empty() ){
@@ -530,7 +565,6 @@ class seqFileReadInfo {
       void generateRevComplement() {
           string line,content;
           fstream revFile;
-          int it = 0;
 
           char buffer[256];
           memset(buffer,0,256);
@@ -544,23 +578,48 @@ class seqFileReadInfo {
 
           clearFileFlag();
 
-          while(getline( files[it], line ).good() && it != numFiles){
-              size += (line.length()+1);
-              if(line[0] == '>'){
-                  if(!strName.empty()) {
-                      numSequences++;
-                      size += RANDOM_SEQ_SIZE;
-                      writeReverseComplementString(strName, content, revFile);
-                      content.clear();
-                      strName.clear();
+          cout << "generating reverse complement with " << numSeqFiles << " files." << endl;
+
+          if (numSeqFiles >= 1){
+
+              while(getline( file1, line ).good()){
+                  size += (line.length()+1);
+                  if(line[0] == '>'){
+                      if(!strName.empty()) {
+                          numSequences++;
+                          size += RANDOM_SEQ_SIZE;
+                          writeReverseComplementString(strName, content, revFile);
+                          content.clear();
+                          strName.clear();
+                      }
+                      if(!line.empty())
+                          strName=line.substr(1);
+                  } else if( !strName.empty() ) {
+                      content += "\n";
+                      content += line;
                   }
-                  if(!line.empty())
-                      strName=line.substr(1);
-              } else if( !strName.empty() ) {
-                  content += "\n";
-                  content += line;
               }
-              ++it;
+
+              if (numSeqFiles == 2){
+
+                  while(getline( file2, line ).good()){
+                      size += (line.length()+1);
+                      if(line[0] == '>'){
+                          if(!strName.empty()) {
+                              numSequences++;
+                              size += RANDOM_SEQ_SIZE;
+                              writeReverseComplementString(strName, content, revFile);
+                              content.clear();
+                              strName.clear();
+                          }
+                          if(!line.empty())
+                              strName=line.substr(1);
+                      } else if( !strName.empty() ) {
+                          content += "\n";
+                          content += line;
+                      }
+                  }
+              }
           }
           // Catches the last sequence line
           if( !strName.empty() ) {
