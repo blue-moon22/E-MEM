@@ -203,7 +203,7 @@ class seqFileReadInfo {
       uint64_t *binReads;
       uint64_t totalBases;
       std::vector <mapObject> blockOfNs;
-/*
+
       seqFileReadInfo() {
           size=0;
           currPos=0;
@@ -213,41 +213,23 @@ class seqFileReadInfo {
           totalBases=0;
           numSeqFiles=0;
       }
-*/
-      seqFileReadInfo(string str)
-      {
-          size=0;
-          currPos=0;
-          binReadSize=0;
-          binReadsLocation=0;
-          numSequences=0;
-          totalBases=0;
-          numSeqFiles=1;
-          file1.open(str, ios::in);
-          if(!file1.is_open()) {
-              cout << "ERROR: unable to open " << str << " file" << endl;
-              exit( EXIT_FAILURE );
-          }
-      }
 
-      seqFileReadInfo(string str1, string str2)
+      void setFiles(vector<string> &filenames)
       {
-          size=0;
-          currPos=0;
-          binReadSize=0;
-          binReadsLocation=0;
-          numSequences=0;
-          totalBases=0;
-          numSeqFiles=2;
-          file1.open(str1, ios::in);
-          if(!file1.is_open()) {
-              cout << "ERROR: unable to open " << str1 << " file" << endl;
-              exit( EXIT_FAILURE );
-          }
-          file2.open(str2, ios::in);
-          if(!file2.is_open()) {
-              cout << "ERROR: unable to open " << str2 << " file" << endl;
-              exit( EXIT_FAILURE );
+          numSeqFiles=filenames.size();
+          if (numSeqFiles >= 1){
+              file1.open(filenames[0], ios::in);
+              if(!file1.is_open()) {
+                  cout << "ERROR: unable to open " << filenames[0] << " file" << endl;
+                  exit( EXIT_FAILURE );
+              }
+              if (numSeqFiles == 2){
+                  file2.open(filenames[1], ios::in);
+                  if(!file2.is_open()) {
+                      cout << "ERROR: unable to open " << filenames[1] << " file" << endl;
+                      exit( EXIT_FAILURE );
+                  }
+              }
           }
       }
 
@@ -263,16 +245,28 @@ class seqFileReadInfo {
           }
       }
 
-      void setReverseFile(fstream &file) {
+      void setReverseFile() {
           char buffer[256];
           memset(buffer,0,256);
           sprintf(buffer, "%s/revComp", commonData::nucmer_path);
-          file.close();
-          openFile(buffer, file);
+
+          if (numSeqFiles >= 1){
+              file1.close();
+              openFile(buffer, file1);
+              if (numSeqFiles == 2){
+                  file2.close();
+                  openFile(buffer, file2);
+              }
+          }
       }
 
-      void closeFile(fstream &file) {
-          file.close();
+      void closeFile() {
+          if (numSeqFiles >= 1){
+              file1.close();
+              if (numSeqFiles == 2){
+                  file2.close();
+              }
+          }
       }
 
       void destroy() {
@@ -562,18 +556,76 @@ class seqFileReadInfo {
           file << content ;
       }
 
-      void generateRevComplement() {
+      void generateSeqPos(vector<seqData> &vecSeqInfo) {
+          seqData s;
+          uint64_t i=0,j=0;
+          string line;
+          clearFileFlag();
+          if (numSeqFiles >= 1){
+              while(getline(file1, line).good() ){
+                  if(line[0] == '>'){
+                      if(!strName.empty()) {
+                          s.start=CHARS2BITS(j);
+                          s.end=CHARS2BITS(i-1);
+                          s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
+                          vecSeqInfo.push_back(s);
+                          s.seq.clear();
+                          i+=RANDOM_SEQ_SIZE;
+                          j=i;
+                          strName.clear();
+                      }
+                      if(!line.empty())
+                          strName=line.substr(1);
+                  } else if( !strName.empty() ) {
+                      i+=line.length();
+                  }
+              }
+              if (numSeqFiles == 2){
+                  while(getline(file2, line).good() ){
+                      if(line[0] == '>'){
+                          if(!strName.empty()) {
+                              s.start=CHARS2BITS(j);
+                              s.end=CHARS2BITS(i-1);
+                              s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
+                              vecSeqInfo.push_back(s);
+                              s.seq.clear();
+                              i+=RANDOM_SEQ_SIZE;
+                              j=i;
+                              strName.clear();
+                          }
+                          if(!line.empty())
+                              strName=line.substr(1);
+                      } else if( !strName.empty() ) {
+                          i+=line.length();
+                      }
+                  }
+              }
+          }
+          if( !strName.empty() ) {
+              i+=line.length();
+              s.start=CHARS2BITS(j);
+              s.end=CHARS2BITS(i-1);
+              s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
+              vecSeqInfo.push_back(s);
+              s.seq.clear();
+              strName.clear();
+          }
+      }
+
+      void generateRevComplement(uint32_t revComplement) {
           string line,content;
           fstream revFile;
 
-          char buffer[256];
-          memset(buffer,0,256);
-          sprintf(buffer, "%s/revComp", commonData::nucmer_path);
-          revFile.open(buffer, ios::out);
-          if (!revFile.is_open())
-          {
-              cout << "ERROR: unable to open temporary reverse complement file" << endl;
-              exit( EXIT_FAILURE );
+          if (revComplement) {
+              char buffer[256];
+              memset(buffer,0,256);
+              sprintf(buffer, "%s/revComp", commonData::nucmer_path);
+              revFile.open(buffer, ios::out);
+              if (!revFile.is_open())
+              {
+                  cout << "ERROR: unable to open temporary reverse complement file" << endl;
+                  exit( EXIT_FAILURE );
+              }
           }
 
           clearFileFlag();

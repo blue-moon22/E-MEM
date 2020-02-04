@@ -512,7 +512,7 @@ int main (int argc, char *argv[])
 {
     int32_t i=0, n=1;
     uint32_t options=0;
-//    seqFileReadInfo QueryFile, RefFile;
+    seqFileReadInfo QueryFile, RefFile;
     string fasta1, fasta2, fastaU;
 
     // Check Arguments
@@ -668,15 +668,66 @@ int main (int argc, char *argv[])
     arrayTmpFile.openFiles(ios::out|ios::binary, NUM_TMP_FILES+2);
 
     if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
-        cout << "paired reads defined" << endl;
-        seqFileReadInfo QueryFile(fasta1, fasta2);
-        seqFileReadInfo RefFile(fasta1, fasta2);
-        RefFile.generateRevComplement(); // This routine also computes size and num sequences
+        vector<string> filenames = {fasta1, fasta2};
+        QueryFile.setFiles(filenames);
+        RefFile.setFiles(filenames);
     } else if (IS_FASTAU_DEF(options)) {
-        seqFileReadInfo QueryFile(fastaU);
-        seqFileReadInfo RefFile(fastaU);
+        vector<string> filenames = {fastaU};
+        QueryFile.setFiles(filenames);
+        RefFile.setFiles(filenames);
     }
 
+    RefFile.generateRevComplement(0); // This routine also computes size and num sequences
+    QueryFile.generateRevComplement(1);
 
+    /* Only reverse complement matches */
+    // RefFile.setReverseFile();
+
+    arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(), QueryFile.getNumSequences());
+    RefFile.allocBinArray();
+    RefFile.clearFileFlag();
+
+    while (true)
+    {
+        for (i=0; i<commonData::d; i++) {
+            if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
+                processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
+                RefFile.setCurrPos(); // Add size (the number of nucl in the file)
+                RefFile.clearMapForNs(); // clear block of Ns from memory
+            }
+            else
+                break;
+        }
+
+        /*
+         * Process MemExt list and write to file
+         */
+
+        arrayTmpFile.mergeMemExtVector();
+        break;
+    }
+
+    /*
+     * Free up the allocated arrays
+     */
+    arrayTmpFile.closeFiles(NUM_TMP_FILES);
+    RefFile.destroy();
+    QueryFile.destroy();
+
+    /*
+     * Populate sequence information in vectors. Use this to get MEM
+     * positions relative to the original sequences.
+     */
+    vector<seqData> refSeqInfo;
+    vector<seqData> querySeqInfo;
+    refSeqInfo.reserve(RefFile.getNumSequences());
+    querySeqInfo.reserve(QueryFile.getNumSequences());
+    RefFile.generateSeqPos(refSeqInfo);
+    QueryFile.generateSeqPos(querySeqInfo);
+    RefFile.closeFile();
+    QueryFile.closeFile();
+
+    arrayTmpFile.removeDuplicates(refSeqInfo, querySeqInfo);
+    fflush(0);
     return 0;
 }
