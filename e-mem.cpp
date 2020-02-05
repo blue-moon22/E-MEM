@@ -290,10 +290,10 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
     /* Ignore reverse complements of the same ORF, i.e. where matching prefix/suffix of reference/query
      * Also excludes N mismatches
      */
-    if ((lRef?lRef!=RefNpos.left:!RefNpos.left) && (rQue?rQue!=QueryNpos.right:!QueryNpos.right)){
-        if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left))
+    //if ((lRef?lRef!=RefNpos.left:!RefNpos.left) && (rQue?rQue!=QueryNpos.right:!QueryNpos.right)){
+    //    if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left))
             arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, QueryFile, RefFile);
-    }
+    //}
 }
 
 void reportMEM(Knode * &refHash, uint64_t totalBases, uint64_t totalQBases, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
@@ -377,7 +377,7 @@ void processQuery(Knode * &refHash, seqFileReadInfo &RefFile, seqFileReadInfo &Q
     QueryFile.clearFileFlag();
     QueryFile.resetCurrPos();
     for (int32_t i=0; i<commonData::d; i++) {
-        if(QueryFile.readChunks()){ // readChunks to encode sequence into 2-bits in QueryFile object
+        if(QueryFile.readChunks(1)){ // readChunks to encode sequence into 2-bits in QueryFile object
             reportMEM(refHash, RefFile.totalBases-1, QueryFile.totalBases-1, RefFile, QueryFile, arrayTmpFile);
             QueryFile.setCurrPos();
             QueryFile.clearMapForNs();
@@ -681,7 +681,7 @@ int main (int argc, char *argv[])
     QueryFile.generateRevComplement(1);
 
     /* Only reverse complement matches */
-    // RefFile.setReverseFile();
+    QueryFile.setReverseFile();
 
     arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(), QueryFile.getNumSequences());
     RefFile.allocBinArray();
@@ -690,7 +690,7 @@ int main (int argc, char *argv[])
     while (true)
     {
         for (i=0; i<commonData::d; i++) {
-            if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
+            if(RefFile.readChunks(0)){ // Encode sequence as 2-bits in RefFile object
                 processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
                 RefFile.setCurrPos(); // Add size (the number of nucl in the file)
                 RefFile.clearMapForNs(); // clear block of Ns from memory

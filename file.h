@@ -252,12 +252,11 @@ class seqFileReadInfo {
 
           if (numSeqFiles >= 1){
               file1.close();
-              openFile(buffer, file1);
               if (numSeqFiles == 2){
                   file2.close();
-                  openFile(buffer, file2);
               }
           }
+          openFile(buffer, file1);
       }
 
       void closeFile() {
@@ -409,7 +408,7 @@ class seqFileReadInfo {
           currPos=0;
       }
 
-      bool readChunks()
+      bool readChunks(uint64_t revComplement)
       {
           string line;
           uint64_t blockNCount=0;
@@ -450,7 +449,7 @@ class seqFileReadInfo {
                       processInput(line, sz, blockNCount);
                   }
               }
-              if (numSeqFiles == 2) {
+              if (numSeqFiles == 2 && !revComplement) {
                   while(getline( file2, line ).good()){
                       if(line[0] == '>' || (totalBases == sz)){
                           if( !strName.empty()){
@@ -629,8 +628,6 @@ class seqFileReadInfo {
           }
 
           clearFileFlag();
-
-          cout << "generating reverse complement with " << numSeqFiles << " files." << endl;
 
           if (numSeqFiles >= 1){
 
