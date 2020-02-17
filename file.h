@@ -71,133 +71,133 @@ class seqData {
 
 class mapObject {
     public:
-      uint64_t left;
-      uint64_t right;
-      mapObject() {
+        uint64_t left;
+        uint64_t right;
+        mapObject() {
           left=0;
           right=0;
-      }
+        }
 
-      mapObject(uint64_t x, uint64_t y) {
+        mapObject(uint64_t x, uint64_t y) {
           left=x;
           right=y;
-      }
+        }
 
-      bool operator()(const uint64_t &x, const mapObject &y)
-      {
+        bool operator()(const uint64_t &x, const mapObject &y)
+        {
           return x < y.left;
-      }
+        }
 };
 
 
 class seqFileReadInfo {
-      fstream file1, file2;
-      int numSeqFiles;
-      uint64_t size;
-      string strTmp, strName;
-      uint64_t binReadSize;
-      uint64_t binReadsLocation;
-      uint64_t currPos;
-      uint64_t numSequences;
+    fstream file1, file2;
+    int numSeqFiles;
+    uint64_t size;
+    string strTmp, strName;
+    uint64_t binReadSize;
+    uint64_t binReadsLocation;
+    uint64_t currPos;
+    uint64_t numSequences;
 
-      string& randomStr()
-      {
-         static string str("NNNNNNNNNN");
-         return str;
-      }
+        string& randomStr()
+        {
+             static string str("NNNNNNNNNN");
+             return str;
+        }
 
-      void processTmpString(uint64_t &sz, uint64_t &blockNCount)
-      {
-          string line = strTmp;
-          strTmp.clear();
-          totalBases=0;
-          binReadsLocation=0;
-          processInput(line, sz, blockNCount);
-      }
+        void processTmpString(uint64_t &sz, uint64_t &blockNCount)
+        {
+            string line = strTmp;
+            strTmp.clear();
+            totalBases=0;
+            binReadsLocation=0;
+            processInput(line, sz, blockNCount);
+        }
 
       /*
        * Function converts a character sequence into an array of integers.
        * Input: character string
        * Output: array of integers, total number of bases
        */
-      void processInput(string &str, uint64_t &sz, uint64_t &blockNCount)
-      {
-          int chooseLetter=0;
+    void processInput(string &str, uint64_t &sz, uint64_t &blockNCount)
+    {
+        int chooseLetter=0;
 
-          /* Processing the sequences by encoding the base pairs into 2 bits. */
-          for ( std::string::iterator it=str.begin(); it!=str.end(); ++it)
-          {
-              if (totalBases == sz){
-                  strTmp += *it;
-                  continue;
-              }else if (totalBases >= size) {
-                  strTmp += *it;
-              }
-              switch(*it)
-              {
-                  case 'A':
-                  case 'a':
-                      binReads[binReadsLocation] <<= 2; // shift left by 2 bits
-                      if (blockNCount){
-                         blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
-                         blockNCount=0;
-                      }
-                      break;
-                  case 'C':
-                  case 'c':
-                      binReads[binReadsLocation] <<= 2;
-                      binReads[binReadsLocation] |= 1;
-                      if (blockNCount){
-                         blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
-                         blockNCount=0;
-                      }
-                      break;
-                  case 'G':
-                  case 'g':
-                      binReads[binReadsLocation] <<= 2;
-                      binReads[binReadsLocation] |= 2;
-                      if (blockNCount){
-                         blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
-                         blockNCount=0;
-                      }
-                      break;
-                  case 'T':
-                  case 't':
-                      binReads[binReadsLocation] <<= 2;
-                      binReads[binReadsLocation] |= 3;
-                      if (blockNCount){
-                         blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
-                         blockNCount=0;
-                      }
-                      break;
-                  default:
-                      if(!blockNCount)
-                          blockNCount=totalBases+1;
-                      chooseLetter = rand() % 4;
-                      if (chooseLetter == 0)
-                          binReads[binReadsLocation] <<= 2;
-                      else if (chooseLetter == 1)
-                      {
-                          binReads[binReadsLocation] <<= 2;
-                          binReads[binReadsLocation] |= 1;
-                      }
-                      else if (chooseLetter == 2)
-                      {
-                          binReads[binReadsLocation] <<= 2;
-                          binReads[binReadsLocation] |= 2;
-                      }
-                      else
-                      {
-                         binReads[binReadsLocation] <<= 2;
-                         binReads[binReadsLocation] |= 3;
-                      }
-              }
-              totalBases++;
-              if ((totalBases%32)==0){
-                  binReadsLocation++;
-              }
-          }
-      }
+        /* Processing the sequences by encoding the base pairs into 2 bits. */
+            for ( std::string::iterator it=str.begin(); it!=str.end(); ++it)
+            {
+            if (totalBases == sz){
+              strTmp += *it;
+              continue;
+            }else if (totalBases >= size) {
+              strTmp += *it;
+            }
+            switch(*it)
+                {
+                    case 'A':
+                    case 'a':
+                    binReads[binReadsLocation] <<= 2; // shift left by 2 bits
+                    if (blockNCount){
+                        blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
+                        blockNCount=0;
+                    }
+                    break;
+                    case 'C':
+                    case 'c':
+                        binReads[binReadsLocation] <<= 2;
+                        binReads[binReadsLocation] |= 1;
+                    if (blockNCount){
+                        blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
+                        blockNCount=0;
+                    }
+                    break;
+                    case 'G':
+                    case 'g':
+                        binReads[binReadsLocation] <<= 2;
+                        binReads[binReadsLocation] |= 2;
+                    if (blockNCount){
+                        blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
+                        blockNCount=0;
+                    }
+                    break;
+                    case 'T':
+                    case 't':
+                        binReads[binReadsLocation] <<= 2;
+                        binReads[binReadsLocation] |= 3;
+                    if (blockNCount){
+                        blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
+                        blockNCount=0;
+                    }
+                    break;
+                    default:
+                    if(!blockNCount)
+                        blockNCount=totalBases+1;
+                        chooseLetter = rand() % 4;
+                    if (chooseLetter == 0)
+                        binReads[binReadsLocation] <<= 2;
+                    else if (chooseLetter == 1)
+                    {
+                        binReads[binReadsLocation] <<= 2;
+                        binReads[binReadsLocation] |= 1;
+                    }
+                    else if (chooseLetter == 2)
+                    {
+                        binReads[binReadsLocation] <<= 2;
+                        binReads[binReadsLocation] |= 2;
+                    }
+                    else
+                    {
+                        binReads[binReadsLocation] <<= 2;
+                        binReads[binReadsLocation] |= 3;
+                    }
+                }
+            totalBases++;
+            if ((totalBases%32)==0){
+                binReadsLocation++;
+            }
+        }
+    }
 
     public:
       uint64_t *binReads;
@@ -690,6 +690,10 @@ class MemExt {
     uint64_t rR;
     uint64_t lQ;
     uint64_t rQ;
+    uint64_t lRN;
+    uint64_t rRN;
+    uint64_t lQN;
+    uint64_t rQN;
     MemExt() {
     }
 
@@ -731,21 +735,30 @@ class tmpFilesInfo {
       return false;
     }
 
-    void writeToFile(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR) {
+    void writeToFile(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR, uint64_t lQN, uint64_t rQN, uint64_t lRN, uint64_t rRN) {
         MemExt m;
         m.lQ=lQ;
         m.lR=lR;
         m.rQ=rQ;
         m.rR=rR;
+        m.lQN=lQN;
+        m.lRN=lRN;
+        m.rQN=rQN;
+        m.rRN=rRN;
         TmpFiles[m.lQ/numMemsInFile].write((char *)&m, sizeof(MemExt));
     }
 
-    void writeToVector(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR) {
+    void writeToVector(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR, uint64_t lQN, uint64_t rQN, uint64_t lRN, uint64_t rRN) {
+        cout << "Writing mems into vector" << endl;
         MemExt m;
         m.lQ=lQ;
         m.lR=lR;
         m.rQ=rQ;
         m.rR=rR;
+        m.lQN=lQN;
+        m.lRN=lRN;
+        m.rQN=rQN;
+        m.rRN=rRN;
         MemExtVec.emplace_back(m);
     }
 
@@ -825,17 +838,19 @@ class tmpFilesInfo {
         return TmpFiles[fIndex];
     }
 
-    bool writeMemInTmpFiles(uint64_t &lRef, uint64_t &rRef, uint64_t &lQue, uint64_t &rQue, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile) {
+    bool writeMemInTmpFiles(uint64_t &lRef, uint64_t &rRef, uint64_t &lQue, uint64_t &rQue, mapObject &RefNpos, mapObject &QueryNpos, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile) {
        MemExt m;
        uint64_t currPosQ = CHARS2BITS(QueryFile.getCurrPos());
        uint64_t currPosR = CHARS2BITS(RefFile.getCurrPos());
        if (rRef-lRef+2 >= static_cast<uint64_t>(commonData::minMemLen)) {
            if (!(commonData::d==1 && commonData::numThreads==1) && checkMEMExt(lRef, rRef, lQue, rQue, QueryFile, RefFile)) {
                #pragma omp critical(writeVector)
-               writeToVector(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef);
+               // cout << "Writing to vector" << endl;
+               writeToVector(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef, currPosQ+QueryNpos.left, currPosQ+QueryNpos.right, currPosR+RefNpos.left, currPosR+RefNpos.right);
            }else {
                #pragma omp critical(writeFile)
-               writeToFile(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef);
+               // cout << "Writing to tmp file" << endl;
+               writeToFile(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef, currPosQ+QueryNpos.left, currPosQ+QueryNpos.right, currPosR+RefNpos.left, currPosR+RefNpos.right);
            }
            return true;
        }else
@@ -980,8 +995,8 @@ class tmpFilesInfo {
     void mergeMemExtVector () {
         int flag=0;
         MemExt m;
-        if (commonData::d==1 && commonData::numThreads==1)
-            return;
+        //if (commonData::d==1 && commonData::numThreads==1)
+        //    return;
 
         if (MemExtVec.size() > 1) {
             sort(MemExtVec.begin(), MemExtVec.end(), MemExt());
@@ -1052,8 +1067,9 @@ class tmpFilesInfo {
             } while (flag);
 
             for (vector<MemExt>::iterator it=MemExtVec.begin(); it != last; ++it) {
-                if ((*it).lQ || (*it).rQ || (*it).lR || (*it).rR )
-                    writeToFile((*it).lQ, (*it).rQ, (*it).lR, (*it).rR);
+                if ((*it).lQ || (*it).rQ || (*it).lR || (*it).rR ) {
+                    writeToFile((*it).lQ, (*it).rQ, (*it).lR, (*it).rR, (*it).lQN, (*it).rQN, (*it).lRN, (*it).rRN);
+                }
             }
         }
         MemExtVec.clear();
@@ -1106,10 +1122,48 @@ class tmpFilesInfo {
         remove(buffer);
     }
 
-    void removeDuplicates(vector<seqData> &refSeqInfo, vector<seqData> &querySeqInfo) {
+    void extBin(seqFileReadInfo &RefFile, vector<uint64_t> &Bins, vector<MemExt>::iterator &itr, int &binLength, int &extLength, int &Bound) {
+        int readBin=0, bin=0;
+        uint64_t offset, totalOffset=0;
+
+        cout << "binLength: " << binLength << endl;
+        Bins.resize(binLength);
+        cout << "(*itr).lR: " << (*itr).lR << endl;
+        cout << "l1Bound: " << Bound << endl;
+        while (bin != binLength) {
+            offset = (Bound) % DATATYPE_WIDTH;
+            cout << "offsetl1: " << offset << endl;
+            if (totalOffset % DATATYPE_WIDTH) {
+                cout << "totaloffset1 % DATATYPE_WIDTH" << endl;
+                offset = DATATYPE_WIDTH - offset;
+                cout << "New offsetl1: " << offset << endl;
+                Bins[bin] |= ((RefFile.binReads[(Bound) / DATATYPE_WIDTH + readBin] & global_mask_left[(totalOffset % DATATYPE_WIDTH)/2 - 1]) >> offset);
+                cout << "Bin " << bin << " : " << Bins[bin] << endl;
+                ++bin;
+            } else {
+                cout << "!totaloffset1 % DATATYPE_WIDTH" << endl;
+                Bins[bin] = RefFile.binReads[(Bound) / DATATYPE_WIDTH + readBin];
+                Bins[bin] <<= offset;
+                cout << "Bin " << bin << " : " << Bins[bin] << endl;
+                ++readBin;
+                if (!offset)
+                    ++bin;
+            }
+            totalOffset += offset;
+            cout << "totaloffset1: " << totalOffset << endl;
+        }
+        if (extLength % DATATYPE_WIDTH)
+            Bins[binLength-1] = Bins[binLength-1] & global_mask_left[(extLength % DATATYPE_WIDTH)/2 - 1];
+        cout << "Bin " << binLength-1 << " : " << Bins[binLength-1] << endl;
+
+    }
+
+    void removeDuplicates(seqFileReadInfo &RefFile) {
         streambuf *coutbuf=std::cout.rdbuf();
         int numFiles=0;
         MemExt m;
+        vector<uint64_t> l1Bins, l2Bins, r1Bins, r2Bins;
+        int Bound, extLength, binLength;
         seqData s;
         char buffer[256];
         memset(buffer,0,256);
@@ -1132,7 +1186,6 @@ class tmpFilesInfo {
             if (i==NUM_TMP_FILES) {
                 /* Output any unsued query sequence */
                 m.lR=m.lQ=m.rR=m.rQ=0;
-                printMemOnTerminal(refSeqInfo, querySeqInfo, m);
                 /* Redirect output to reverse complement file */
                 std::cout.rdbuf(TmpFiles[numFiles+1].rdbuf());
             }
@@ -1142,17 +1195,48 @@ class tmpFilesInfo {
             }
             sort(MemExtVec.begin(), MemExtVec.end(), MemExt());
             last=unique(MemExtVec.begin(), MemExtVec.end(), myUnique);
+
+
             TmpFiles[i].close();
             remove(buffer);
             for (vector<MemExt>::iterator it=MemExtVec.begin(); it!=last; ++it) {
-                printMemOnTerminal(refSeqInfo, querySeqInfo, *it);
+                cout << "References exist" << endl;
+                vector<MemExt>::iterator dup = it;
+                ++dup;
+
+                for (; dup != last; ++dup) {
+                    /* Left extension */
+                    cout << "LEFT EXTENSION" << endl;
+                    extLength = min((*it).lR - (*it).lRN, (*dup).lR - (*dup).lRN);
+                    binLength = min(((*it).lR - (*it).lRN)/DATATYPE_WIDTH + 1, ((*dup).lR - (*dup).lRN)/DATATYPE_WIDTH + 1);
+                    Bound = (*it).lR - extLength;
+                    extBin(RefFile, l1Bins, it, binLength, extLength, Bound);
+                    Bound = (*dup).lR - extLength;
+                    extBin(RefFile, l2Bins, dup, binLength, extLength, Bound);
+                    for (int bin=0; bin!=binLength; ++bin) {
+                        if (l1Bins[bin] != l2Bins[bin])
+                            break;
+                    }
+                    /* Right extension */
+                    cout << "RIGHT EXTENSION" << endl;
+                    extLength = min((*it).rRN - (*it).rR, (*dup).rRN - (*dup).rR);
+                    binLength = min(((*it).rRN - (*it).rR)/(DATATYPE_WIDTH+1) + 1, ((*dup).rRN - (*dup).rR)/(DATATYPE_WIDTH+1) + 1);
+                    Bound = (*it).rR + 2;
+                    extBin(RefFile, r1Bins, it, binLength, extLength, Bound);
+                    Bound = (*dup).rR + 2;
+                    extBin(RefFile, r2Bins, dup, binLength, extLength, Bound);
+                    for (int bin=0; bin!=binLength; ++bin) {
+                        if (r1Bins[bin] != r2Bins[bin])
+                            break;
+                    }
+                }
             }
             MemExtVec.clear();
         }
 
         /* Output any unsued query sequence */
         m.lR=m.lQ=m.rR=m.rQ=0;
-        printMemOnTerminal(refSeqInfo, querySeqInfo, m);
+        //printMemOnTerminal(refSeqInfo, querySeqInfo, m);
 
         sprintf(buffer, "%s/revComp", commonData::nucmer_path);
         remove(buffer);

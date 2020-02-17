@@ -110,7 +110,6 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
     uint64_t currR=0, currQ=0;
     int i=0,j=0,mismatch=0;
     uint64_t matchSize=0;
-    uint64_t prevlRef=0, prevlQue=0, prevrRef=0, prevrQue=0;
 
     // Gets the real N bounds outside the k-mer
     if (!(((QueryNpos.left==0x1)?true:QueryNpos.left<=lQue) && rQue<=QueryNpos.right))
@@ -182,7 +181,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
             if (mismatch) { // if already had a mismatch
                 if (matchSize==2) // and there is no more to extend, break
                     break;
-                currR >>= matchSize; // go to next bin in reference reads (not k-mer hash)
+                currR >>= matchSize;
                 currQ >>= matchSize;
             }
         }
@@ -290,89 +289,90 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
     /* Ignore reverse complements of the same ORF, i.e. where matching prefix/suffix of reference/query
      * Also excludes N mismatches
      */
-    //if ((lRef?lRef!=RefNpos.left:!RefNpos.left) && (rQue?rQue!=QueryNpos.right:!QueryNpos.right)){
-    //    if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left))
-            arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, QueryFile, RefFile);
-    //}
+    if ((lRef?lRef!=RefNpos.left:!RefNpos.left) && (rQue?rQue!=QueryNpos.right:!QueryNpos.right)){
+        if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left))
+            // cout << "Palindrome detected" << endl;
+            arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, RefNpos, QueryNpos, QueryFile, RefFile);
+    }
 }
 
-void reportMEM(Knode * &refHash, uint64_t totalBases, uint64_t totalQBases, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
+void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
 {
-  uint64_t totalQBits = CHARS2BITS(totalQBases); //convert char position to bit position of QueryFile.totalBases-1
-  uint32_t copyBits=0;
-  #pragma omp parallel num_threads(commonData::numThreads)
-  {
-      uint64_t currKmer=0, j=0;
-      int32_t offset=0;
-      uint32_t first=1;
-      int kmerWithNs=0;
-      mapObject QueryNpos, RefNpos;
-      vector<mapObject>::iterator it;
-      it = upper_bound(QueryFile.blockOfNs.begin(), QueryFile.blockOfNs.end(), 0, mapObject());
+    uint64_t totalQBits = CHARS2BITS(totalQBases); // convert char position to bit position of QueryFile.totalBases-1
+    uint32_t copyBits=0;
+    #pragma omp parallel num_threads(commonData::numThreads)
+    {
+        uint64_t currKmer=0, j=0;
+        int32_t offset=0;
+        uint32_t first=1;
+        int kmerWithNs=0;
+        mapObject QueryNpos, RefNpos;
+        vector<mapObject>::iterator it;
+        it = upper_bound(QueryFile.blockOfNs.begin(), QueryFile.blockOfNs.end(), 0, mapObject());
 
-      #pragma omp single
-      {
-      /*
-       * Number of copy bits during query kmer processing depends on kmer size.
-       */
-      if (DATATYPE_WIDTH-commonData::kmerSize > 32 )
-          copyBits=32; //16 characters
-      else if (DATATYPE_WIDTH-commonData::kmerSize > 16) //kmerSize = 40 so copyBits = 16
-          copyBits=16; //8 characters
-      else
-          copyBits=8; //4 characters
+        #pragma omp single
+        {
+        /*
+        * Number of copy bits during query kmer processing depends on kmer size.
+        */
+        if (DATATYPE_WIDTH-commonData::kmerSize > 32 )
+            copyBits=32; //16 characters
+        else if (DATATYPE_WIDTH-commonData::kmerSize > 16) //kmerSize = 40 so copyBits = 16
+            copyBits=16; //8 characters
+        else
+            copyBits=8; //4 characters
 
-      /* If copyBits more than 8, the for loop parallelisation will give
-       * incorrect results - miss some Mems
-       */
-      if(commonData::numThreads > 1)
-          copyBits=8; //4 characters // if more than one thread, then copyBits = 8
-      }
+        /* If copyBits more than 8, the for loop parallelisation will give
+        * incorrect results - miss some Mems
+        */
+        if(commonData::numThreads > 1)
+            copyBits=8; //4 characters // if more than one thread, then copyBits = 8
+        }
 
-      // parallelise search of query kmer in reference
-      #pragma omp for
-      for (uint64_t currKmerPos=0; currKmerPos<=totalQBits; currKmerPos+=2)
-      {
-          if ((currKmerPos + commonData::kmerSize - 2) > totalQBits)
-              continue;
+        // parallelise search of query kmer in reference
+        #pragma omp for
+        for (uint64_t currKmerPos=0; currKmerPos<=totalQBits; currKmerPos+=2)
+        {
+            if ((currKmerPos + commonData::kmerSize - 2) > totalQBits)
+                continue;
 
-          if(QueryFile.checkKmerForNs(currKmerPos, it)){
-              kmerWithNs=1;
-          }
+            if(QueryFile.checkKmerForNs(currKmerPos, it)){
+                kmerWithNs=1;
+            }
 
-          j=currKmerPos/DATATYPE_WIDTH;// current location in binReads
-          offset = currKmerPos%DATATYPE_WIDTH;
-          if(first || !offset){
-              currKmer = QueryFile.binReads[j];
-              currKmer <<= offset;
-              if(offset > DATATYPE_WIDTH-commonData::kmerSize)
+            j=currKmerPos/DATATYPE_WIDTH;// current location in binReads
+            offset = currKmerPos%DATATYPE_WIDTH;
+            if(first || !offset){
+                currKmer = QueryFile.binReads[j];
+                currKmer <<= offset;
+                if(offset > DATATYPE_WIDTH-commonData::kmerSize)
                   currKmer |= ((QueryFile.binReads[j+1] & global_mask_left[offset/2-1])>>(DATATYPE_WIDTH-offset));
-              first=0;
-          }else
-              currKmer <<= 2;
+                first=0;
+            }else
+                currKmer <<= 2;
 
-          if(offset  && !(offset % copyBits))
+            if(offset  && !(offset % copyBits))
               currKmer |= ((QueryFile.binReads[j+1] & global_mask_left[offset/2-1])>>(DATATYPE_WIDTH-offset));
 
-          if (kmerWithNs){
+            if (kmerWithNs){
              /* Do not process this Kmer, Ns in it */
              kmerWithNs=0;
              continue;
-          }
-          /* Find the K-mer in the refHash */
-          uint64_t *dataPtr=NULL;
-          if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize/2 - 1], dataPtr)) // dataPtr is position of the kmer in reference
-          {
-              // We have a match
-              for (uint64_t n=1; n<=dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                  helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases), RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos);
-              }
-          }
-      }
-  }
+            }
+            /* Find the K-mer in the refHash */
+            uint64_t *dataPtr=NULL;
+            if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize/2 - 1], dataPtr)) // dataPtr is position of the kmer in reference
+            {
+                // We have a match
+                for (uint64_t n=1; n<=dataPtr[0]; n++) { // currKmerPos is position of kmer in query
+                    helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases), RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos);
+                }
+            }
+        }
+    }
 }
 
-void processQuery(Knode * &refHash, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
+void processQuery(Knode* &refHash, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
 {
     QueryFile.clearFileFlag();
     QueryFile.resetCurrPos();
@@ -401,8 +401,8 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
     {
         if (hashTableSize[n] > 1.75*numberOfKmers)
         {
-           hashTableSizeIndex = n;
-           break;
+            hashTableSizeIndex = n;
+            break;
         }
     }
 
@@ -429,7 +429,6 @@ bool is_numeric(const string &str)
 
 void checkCommandLineOptions(uint32_t &options)
 {
-  // TODO
     if (!IS_FASTAU_DEF(options)){
         if (!IS_FASTA1_DEF(options) || !IS_FASTA2_DEF(options)){
             cout << "ERROR: both f1 forward and f2 reverse fasta files or fu unpaired fasta file must be passed!" << endl;
@@ -517,44 +516,44 @@ int main (int argc, char *argv[])
 
     // Check Arguments
     if (argc==1 || argc==2){
-       print_help_msg();
-       exit(EXIT_SUCCESS);
+        print_help_msg();
+        exit(EXIT_SUCCESS);
     }
 
     while(argv[n]) {
 
         if(boost::equals(argv[n], "-f1")){
             if (IS_FASTA1_DEF(options)){
-              cout << "ERROR: f1 argument passed multiple times!" << endl;
-              exit(EXIT_FAILURE);
+                cout << "ERROR: f1 argument passed multiple times!" << endl;
+                exit(EXIT_FAILURE);
             }
             if (IS_FASTAU_DEF(options)){
-              cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
-              exit(EXIT_FAILURE);
+                cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
+                exit(EXIT_FAILURE);
             }
             SET_FASTA1(options);
             fasta1 = argv[n+1];
             n+=2;
         }else if(boost::equals(argv[n], "-f2")){
             if (IS_FASTA2_DEF(options)){
-              cout << "ERROR: f2 argument passed multiple times!" << endl;
-              exit(EXIT_FAILURE);
+                cout << "ERROR: f2 argument passed multiple times!" << endl;
+                exit(EXIT_FAILURE);
             }
             if (IS_FASTAU_DEF(options)){
-              cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
-              exit(EXIT_FAILURE);
+                cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
+                exit(EXIT_FAILURE);
             }
             SET_FASTA2(options);
             fasta2 = argv[n+1];
             n+=2;
         }else if(boost::equals(argv[n], "-fu")){
             if (IS_FASTAU_DEF(options)){
-              cout << "ERROR: fu argument passed multiple times!" << endl;
-              exit(EXIT_FAILURE);
+                cout << "ERROR: fu argument passed multiple times!" << endl;
+                exit(EXIT_FAILURE);
             }
             if (IS_FASTA1_DEF(options) || IS_FASTA2_DEF(options)){
-              cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
-              exit(EXIT_FAILURE);
+                cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
+                exit(EXIT_FAILURE);
             }
             SET_FASTAU(options);
             fastaU = argv[n+1];
@@ -692,7 +691,7 @@ int main (int argc, char *argv[])
         for (i=0; i<commonData::d; i++) {
             if(RefFile.readChunks(0)){ // Encode sequence as 2-bits in RefFile object
                 processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
-                RefFile.setCurrPos(); // Add size (the number of nucl in the file)
+                RefFile.setCurrPos(); // Add size (the number of nucl in the split file)
                 RefFile.clearMapForNs(); // clear block of Ns from memory
             }
             else
@@ -702,7 +701,6 @@ int main (int argc, char *argv[])
         /*
          * Process MemExt list and write to file
          */
-
         arrayTmpFile.mergeMemExtVector();
         break;
     }
@@ -711,7 +709,7 @@ int main (int argc, char *argv[])
      * Free up the allocated arrays
      */
     arrayTmpFile.closeFiles(NUM_TMP_FILES);
-    RefFile.destroy();
+    //RefFile.destroy();
     QueryFile.destroy();
 
     /*
@@ -722,12 +720,13 @@ int main (int argc, char *argv[])
     vector<seqData> querySeqInfo;
     refSeqInfo.reserve(RefFile.getNumSequences());
     querySeqInfo.reserve(QueryFile.getNumSequences());
-    RefFile.generateSeqPos(refSeqInfo);
-    QueryFile.generateSeqPos(querySeqInfo);
+    //RefFile.generateSeqPos(refSeqInfo);
+    //QueryFile.generateSeqPos(querySeqInfo);
     RefFile.closeFile();
     QueryFile.closeFile();
 
-    arrayTmpFile.removeDuplicates(refSeqInfo, querySeqInfo);
+    arrayTmpFile.removeDuplicates(RefFile);
+    RefFile.destroy();
     fflush(0);
     return 0;
 }
