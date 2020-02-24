@@ -436,6 +436,11 @@ void checkCommandLineOptions(uint32_t &options)
         }
     }
 
+    if (!IS_OUT_FILE_DEF(options)) {
+        cout << "ERROR: output file must be passed!" << endl;
+        exit(EXIT_FAILURE);
+    }
+
     if (IS_SPLIT_SIZE_DEF(options)){
         if (commonData::d <= 0){
             cout << "ERROR: -d cannot be less than or equal to zero!" << endl;
@@ -495,6 +500,7 @@ void print_help_msg()
     cout << "-f1\t<filename>\t" << "fasta file with forward paired-end reads" << endl;
     cout << "-f2\t<filename>\t" << "fasta file with reverse paired-end reads" << endl;
     cout << "-fu\t<filename>\t" << "fasta file with unpaired reads" << endl;
+    cout << "-o\t<filename>\t" << "output file" << endl;
     cout << "-l\t" << "set the minimum length of a match. The default length" << endl;
     cout << "  \tis 50" << endl;
     cout << "-c\t" << "report the query-position of a reverse complement match" << endl;
@@ -512,7 +518,8 @@ int main (int argc, char *argv[])
     int32_t i=0, n=1;
     uint32_t options=0;
     seqFileReadInfo QueryFile, RefFile;
-    string fasta1, fasta2, fastaU;
+    outFileReadInfo OutFile;
+    string fasta1, fasta2, fastaU, outFilename;
 
     // Check Arguments
     if (argc==1 || argc==2){
@@ -546,17 +553,25 @@ int main (int argc, char *argv[])
             SET_FASTA2(options);
             fasta2 = argv[n+1];
             n+=2;
-        }else if(boost::equals(argv[n], "-fu")){
-            if (IS_FASTAU_DEF(options)){
+        }else if(boost::equals(argv[n], "-fu")) {
+            if (IS_FASTAU_DEF(options)) {
                 cout << "ERROR: fu argument passed multiple times!" << endl;
                 exit(EXIT_FAILURE);
             }
-            if (IS_FASTA1_DEF(options) || IS_FASTA2_DEF(options)){
+            if (IS_FASTA1_DEF(options) || IS_FASTA2_DEF(options)) {
                 cout << "ERROR: the f1 and f2 arguments must be used together or fu argument used alone!" << endl;
                 exit(EXIT_FAILURE);
             }
             SET_FASTAU(options);
-            fastaU = argv[n+1];
+            fastaU = argv[n + 1];
+            n += 2;
+        } else if(boost::equals(argv[n], "-o")){
+            if (IS_OUT_FILE_DEF(options)) {
+                cout << "ERROR: output file argument passed multiple times!" << endl;
+                exit(EXIT_FAILURE);
+            }
+            SET_OUT_FILE(options);
+            outFilename = argv[n+1];
             n+=2;
         }else if(boost::equals(argv[n],"-l")){
             if (IS_LENGTH_DEF(options)) {
@@ -701,6 +716,7 @@ int main (int argc, char *argv[])
         /*
          * Process MemExt list and write to file
          */
+        cout << "Merge to make temp files" << endl;
         arrayTmpFile.mergeMemExtVector();
         break;
     }
@@ -709,24 +725,41 @@ int main (int argc, char *argv[])
      * Free up the allocated arrays
      */
     arrayTmpFile.closeFiles(NUM_TMP_FILES);
-    //RefFile.destroy();
+    QueryFile.closeFile();
     QueryFile.destroy();
 
     /*
      * Populate sequence information in vectors. Use this to get MEM
      * positions relative to the original sequences.
      */
+    cout << "Create seqData" << endl;
     vector<seqData> refSeqInfo;
-    vector<seqData> querySeqInfo;
+    // vector<seqData> querySeqInfo;
     refSeqInfo.reserve(RefFile.getNumSequences());
-    querySeqInfo.reserve(QueryFile.getNumSequences());
-    //RefFile.generateSeqPos(refSeqInfo);
+    // querySeqInfo.reserve(QueryFile.getNumSequences());
+    RefFile.generateSeqPos(refSeqInfo);
     //QueryFile.generateSeqPos(querySeqInfo);
-    RefFile.closeFile();
-    QueryFile.closeFile();
 
-    arrayTmpFile.removeDuplicates(RefFile);
+    cout << "Get inverted repeats" << endl;
+    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo);
+
+    cout << "Write to outfile" << endl;
+    OutFile.setFile(outFilename);
+    if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
+        vector<string> filenames = {fasta1, fasta2};
+        OutFile.removeSeq(refSeqInfo, filenames);
+    } else if (IS_FASTAU_DEF(options)) {
+        vector<string> filenames = {fastaU};
+        OutFile.removeSeq(refSeqInfo, filenames);
+    }
+
+    //arrayTmpFile.removeTmp();
+
+    RefFile.closeFile();
+    OutFile.closeFile();
+
     RefFile.destroy();
+
     fflush(0);
     return 0;
 }

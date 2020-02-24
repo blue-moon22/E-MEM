@@ -557,7 +557,7 @@ class seqFileReadInfo {
 
       void generateSeqPos(vector<seqData> &vecSeqInfo) {
           seqData s;
-          uint64_t i=0,j=0;
+          uint64_t i=0,j=0,lineNum=1;
           string line;
           clearFileFlag();
           if (numSeqFiles >= 1){
@@ -578,6 +578,7 @@ class seqFileReadInfo {
                   } else if( !strName.empty() ) {
                       i+=line.length();
                   }
+                  ++lineNum;
               }
               if (numSeqFiles == 2){
                   while(getline(file2, line).good() ){
@@ -597,6 +598,7 @@ class seqFileReadInfo {
                       } else if( !strName.empty() ) {
                           i+=line.length();
                       }
+                      ++lineNum;
                   }
               }
           }
@@ -684,6 +686,78 @@ class seqFileReadInfo {
       }
 };
 
+class outFileReadInfo {
+    fstream outFile;
+
+public:
+
+    void setFile(string &filename)
+    {
+        outFile.open(filename, ios::out);
+        if(!outFile.is_open()) {
+            cout << "ERROR: unable to open " << filename << " file" << endl;
+            exit( EXIT_FAILURE );
+        }
+    }
+
+
+    void writeString(string &content, fstream &file)
+    {
+        file << content << "\n";
+    }
+
+    void removeSeq(vector<seqData> &vecSeqInfo, vector<string> &filenames) {
+        seqData s;
+        uint64_t i = 0, j = 0, lineNum = 1;
+        string line;
+        char buffer[256];
+        memset(buffer,0,256);
+        sprintf(buffer, "%s/IR", commonData::nucmer_path);
+        fstream palFile;
+        palFile.open(buffer, ios::in);
+
+        /* Write inverted repeats */
+        while (getline(palFile, line).good()) {
+            writeString(line, outFile);
+        }
+
+        if (filenames.size() >= 1) {
+            fstream file1;
+            file1.open(filenames[0], ios::in);
+            while (getline(file1, line).good()) {
+                if (line[0] == '>') {
+                    if (vecSeqInfo[lineNum - 1].start && vecSeqInfo[lineNum - 1].end)
+                        writeString(line, outFile);
+                } else {
+                    if (vecSeqInfo[lineNum - 1].start && vecSeqInfo[lineNum - 1].end)
+                        writeString(line, outFile);
+                    ++lineNum;
+                }
+            }
+            file1.close();
+            if (filenames.size() == 2) {
+                fstream file2;
+                file2.open(filenames[0], ios::in);
+                while (getline(file2, line).good()) {
+                    if (line[0] == '>') {
+                        if (vecSeqInfo[lineNum - 1].start && vecSeqInfo[lineNum - 1].end)
+                            writeString(line, outFile);
+                    } else {
+                        if (vecSeqInfo[lineNum - 1].start && vecSeqInfo[lineNum - 1].end)
+                            writeString(line, outFile);
+                        ++lineNum;
+                    }
+                }
+                file2.close();
+            }
+        }
+    }
+
+    void closeFile() {
+        outFile.close();
+    }
+};
+
 class MemExt {
   public:
     uint64_t lR;
@@ -708,9 +782,9 @@ class MemExt {
     bool operator () (const MemExt &obj1, const MemExt &obj2)
     {
       if (obj1.lQ<obj2.lQ)
-         return true;
+          return true;
       else if (obj1.lQ>obj2.lQ)
-         return false;
+          return false;
       else{
          if (obj1.lR<obj2.lR)
              return true;
@@ -723,6 +797,7 @@ class MemExt {
 
 class tmpFilesInfo {
     fstream *TmpFiles;
+    fstream palFile;
     vector <MemExt> MemExtVec;
     uint64_t numMemsInFile;
 
@@ -749,7 +824,7 @@ class tmpFilesInfo {
     }
 
     void writeToVector(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR, uint64_t lQN, uint64_t rQN, uint64_t lRN, uint64_t rRN) {
-        cout << "Writing mems into vector" << endl;
+        // cout << "Writing mems into vector" << endl;
         MemExt m;
         m.lQ=lQ;
         m.lR=lR;
@@ -792,12 +867,42 @@ class tmpFilesInfo {
 
     }
 
+    static bool sortReverse (const MemExt &obj1, const MemExt &obj2)
+    {
+        if (obj1.lQ + obj1.lR > obj2.lQ + obj2.lR)
+            return true;
+        else if (obj1.lQ + obj1.lR < obj2.lQ + obj2.lR)
+            return false;
+        else{
+            if (obj1.rQ + obj1.rR > obj2.rQ + obj2.rR)
+                return true;
+            else
+                return false;
+        }
+    }
+
     static bool myUnique(const MemExt &obj1, const MemExt &obj2)
     {
       if((obj1.lQ==obj2.lQ) && (obj1.rQ==obj2.rQ) && (obj1.rR==obj2.rR) && (obj1.lR==obj2.lR))
           return true;
       else
           return false;
+    }
+
+    static bool myUniqueRev(const MemExt &obj1, const MemExt &obj2)
+    {
+        if((obj1.lQ==obj2.lR) && (obj1.rQ==obj2.rR))
+            return true;
+        else
+            return false;
+    }
+
+    static bool myUniqueQue(const MemExt &obj1, const MemExt &obj2)
+    {
+        if((obj1.lQ==obj2.lQ) && (obj1.rQ==obj2.rQ))
+            return true;
+        else
+            return false;
     }
 
     void openFiles(ios_base::openmode mode, int numFiles) {
@@ -831,6 +936,18 @@ class tmpFilesInfo {
     void closeFiles(int numFiles) {
         for (int32_t i=0;i<numFiles;i++){
            TmpFiles[i].close();
+        }
+    }
+
+    void setIRFile() {
+        char buffer[256];
+        memset(buffer,0,256);
+        sprintf(buffer, "%s/IR", commonData::nucmer_path);
+
+        palFile.open(buffer, ios::out);
+        if(!palFile.is_open()) {
+            cout << "ERROR: unable to open "<< buffer << " file" << endl;
+            exit( EXIT_FAILURE );
         }
     }
 
@@ -1075,170 +1192,239 @@ class tmpFilesInfo {
         MemExtVec.clear();
     }
 
-    void outputInMummerFormat() {
-        string line, last_line;
-        static int first=1;
-        char buffer[256];
-        int n1=2*NUM_TMP_FILES,n2=2*NUM_TMP_FILES+1;
-        fstream *filePtr, *forFile=&TmpFiles[n1], *revFile=&TmpFiles[n2];
-        memset(buffer,0,256);
-        sprintf(buffer, "%s/%d", commonData::nucmer_path, n1);
-        (*forFile).open(buffer, ios::in);
-        sprintf(buffer, "%s/%d", commonData::nucmer_path, n2);
-        (*revFile).open(buffer, ios::in);
-
-        filePtr = forFile;
-        if(getline((*filePtr), line).good())
-            cout << line << "\n";
-
-        while(getline((*filePtr), line).good()) {
-            if(line[0] == '>'){
-                if (last_line.size())
-                    cout << last_line << "\n";
-                last_line = line;
-                if (filePtr == forFile) {
-                    filePtr = revFile;
-                    if (first) {
-                        if(getline((*filePtr), line).good())
-                            cout << line << "\n";
-                        first=0;
-                    }
-                }else
-                    filePtr = forFile;
-                continue;
-            }
-            cout << line << "\n";
-        }
-
-        cout << last_line << "\n";
-        filePtr = revFile;
-        while(getline((*filePtr), line).good())
-            cout << line << "\n";
-
-        (*revFile).close();
-        (*forFile).close();
-        remove(buffer);
-        sprintf(buffer, "%s/%d", commonData::nucmer_path, n1);
-        remove(buffer);
-    }
-
-    void extBin(seqFileReadInfo &RefFile, vector<uint64_t> &Bins, vector<MemExt>::iterator &itr, int &binLength, int &extLength, int &Bound) {
+    void extBin(seqFileReadInfo &RefFile, vector<uint64_t> &Bins, vector<MemExt>::iterator &itr, int &binLength, uint64_t &extLength, uint64_t &Bound) {
         int readBin=0, bin=0;
         uint64_t offset, totalOffset=0;
 
-        cout << "binLength: " << binLength << endl;
         Bins.resize(binLength);
-        cout << "(*itr).lR: " << (*itr).lR << endl;
-        cout << "l1Bound: " << Bound << endl;
         while (bin != binLength) {
             offset = (Bound) % DATATYPE_WIDTH;
-            cout << "offsetl1: " << offset << endl;
             if (totalOffset % DATATYPE_WIDTH) {
-                cout << "totaloffset1 % DATATYPE_WIDTH" << endl;
                 offset = DATATYPE_WIDTH - offset;
-                cout << "New offsetl1: " << offset << endl;
                 Bins[bin] |= ((RefFile.binReads[(Bound) / DATATYPE_WIDTH + readBin] & global_mask_left[(totalOffset % DATATYPE_WIDTH)/2 - 1]) >> offset);
-                cout << "Bin " << bin << " : " << Bins[bin] << endl;
                 ++bin;
             } else {
-                cout << "!totaloffset1 % DATATYPE_WIDTH" << endl;
                 Bins[bin] = RefFile.binReads[(Bound) / DATATYPE_WIDTH + readBin];
                 Bins[bin] <<= offset;
-                cout << "Bin " << bin << " : " << Bins[bin] << endl;
                 ++readBin;
                 if (!offset)
                     ++bin;
             }
             totalOffset += offset;
-            cout << "totaloffset1: " << totalOffset << endl;
         }
         if (extLength % DATATYPE_WIDTH)
             Bins[binLength-1] = Bins[binLength-1] & global_mask_left[(extLength % DATATYPE_WIDTH)/2 - 1];
-        cout << "Bin " << binLength-1 << " : " << Bins[binLength-1] << endl;
-
     }
 
-    void removeDuplicates(seqFileReadInfo &RefFile) {
+    void convertToNucl(uint64_t bin, string &sequence) {
+        if (bin == 0) {
+            sequence += 'A';
+        } else if (bin == 1) {
+            sequence += 'C';
+        } else if (bin == 2) {
+            sequence += 'G';
+        } else if (bin == 3) {
+            sequence += 'T';
+        }
+    }
+
+    int hammingDistance(uint64_t &bin1, uint64_t &bin2)
+    {
+        uint64_t x = bin1 ^ bin2;
+        int setBits = 0;
+
+        while (x > 0) {
+            setBits += x & 1;
+            x >>= 1;
+        }
+
+        return setBits;
+    }
+
+    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo) {
         streambuf *coutbuf=std::cout.rdbuf();
         int numFiles=0;
         MemExt m;
         vector<uint64_t> l1Bins, l2Bins, r1Bins, r2Bins;
-        int Bound, extLength, binLength;
-        seqData s;
+        int32_t offset=0;
+        uint64_t Bound, currL1Bound, currR1Bound, currL2Bound, currR2Bound, ext=2, extLengthL, extLengthR, currExtLengthL, currExtLengthR, currBin;
+        int binLength, hDL, hDR;
         char buffer[256];
         memset(buffer,0,256);
 
         numFiles=NUM_TMP_FILES;
 
+        //sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles);
+        //remove(buffer);
+
+        //sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles+1);
+        //remove(buffer);
 
         openFiles(ios::in|ios::binary, numFiles);
 
-        sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles);
-        remove(buffer);
-
-
-        sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles+1);
-        remove(buffer);
-
-        for (int32_t i=0;i<numFiles;i++){
-            vector<MemExt>::iterator last;
+        for (int32_t i=0;i<numFiles;i++) {
             sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
-            if (i==NUM_TMP_FILES) {
+            if (i == NUM_TMP_FILES) {
                 /* Output any unsued query sequence */
-                m.lR=m.lQ=m.rR=m.rQ=0;
+                m.lR = m.lQ = m.rR = m.rQ = 0;
                 /* Redirect output to reverse complement file */
-                std::cout.rdbuf(TmpFiles[numFiles+1].rdbuf());
+                std::cout.rdbuf(TmpFiles[numFiles + 1].rdbuf());
             }
 
-            while(!TmpFiles[i].read((char *)&m, sizeof (MemExt)).eof()) {
+            while (!TmpFiles[i].read((char *) &m, sizeof(MemExt)).eof()) {
                 MemExtVec.emplace_back(m);
             }
-            sort(MemExtVec.begin(), MemExtVec.end(), MemExt());
-            last=unique(MemExtVec.begin(), MemExtVec.end(), myUnique);
-
 
             TmpFiles[i].close();
-            remove(buffer);
-            for (vector<MemExt>::iterator it=MemExtVec.begin(); it!=last; ++it) {
-                cout << "References exist" << endl;
-                vector<MemExt>::iterator dup = it;
-                ++dup;
+            //remove(buffer);
+        }
 
-                for (; dup != last; ++dup) {
+        /* File to hold sequences with inverted repeats */
+        setIRFile();
+
+        cout << "Change left and right query" << endl;
+        uint64_t lQtmp, rQtmp;
+        for (vector<MemExt>::iterator it = MemExtVec.begin(); it != MemExtVec.end(); ++it) {
+            lQtmp = (((*it).lQN == 1)?((*it).lQN + ((*it).rQN - (*it).rQ) - 1):((*it).lQN + ((*it).rQN - (*it).rQ)));
+            rQtmp = (((*it).lQN == 1)?((*it).lQN + ((*it).rQN - (*it).lQ) - 1):((*it).lQN + ((*it).rQN - (*it).lQ)));
+            (*it).lQ = lQtmp;
+            (*it).rQ = rQtmp;
+        }
+
+        cout << "Sort memExt" << endl;
+        vector<MemExt>::iterator last;
+        sort(MemExtVec.begin(), MemExtVec.end(), MemExt());
+        last = unique(MemExtVec.begin(), MemExtVec.end(), myUnique);
+        sort(MemExtVec.begin(), last, sortReverse);
+        last = unique(MemExtVec.begin(), last, myUniqueRev);
+
+        vector<MemExt>::iterator lastIt = unique(MemExtVec.begin(), last, myUniqueQue);
+        cout << "Size of MemExtVec: " << MemExtVec.size() << endl;
+        cout << "Number of queries: " << distance(MemExtVec.begin(), lastIt) << endl;
+
+        for (vector<MemExt>::iterator it=MemExtVec.begin();it!=lastIt;++it) {
+
+            currExtLengthL = (*it).lR - (*it).lRN;
+            currExtLengthR = (*it).rRN - (*it).rR;
+            currL1Bound = (*it).lRN;
+            currR1Bound = (*it).rR + ext;
+            currL2Bound = (*it).rR + ext;
+            currR2Bound = (*it).rRN + ext;
+
+            for (vector<seqData>::iterator seq=vecSeqInfo.begin(); seq!=vecSeqInfo.end(); ++seq) {
+                if ((*it).lQ > (*seq).start && (*it).rQ < (*seq).end) {
+                    (*seq).start=0;
+                    (*seq).end=0;
+                }
+            }
+
+            vector<MemExt>::iterator dup = it;
+            ++dup;
+            for (;dup!=last;++dup){
+                if ((*it).rQ == (*dup).rQ && (*it).lQ == (*dup).lQ) {
                     /* Left extension */
-                    cout << "LEFT EXTENSION" << endl;
-                    extLength = min((*it).lR - (*it).lRN, (*dup).lR - (*dup).lRN);
-                    binLength = min(((*it).lR - (*it).lRN)/DATATYPE_WIDTH + 1, ((*dup).lR - (*dup).lRN)/DATATYPE_WIDTH + 1);
-                    Bound = (*it).lR - extLength;
-                    extBin(RefFile, l1Bins, it, binLength, extLength, Bound);
-                    Bound = (*dup).lR - extLength;
-                    extBin(RefFile, l2Bins, dup, binLength, extLength, Bound);
-                    for (int bin=0; bin!=binLength; ++bin) {
-                        if (l1Bins[bin] != l2Bins[bin])
-                            break;
+                    if (max((*it).lR - (*it).lRN, (*dup).lR - (*dup).lRN) > currExtLengthL) {
+                        currExtLengthL = max((*it).lR - (*it).lRN, (*dup).lR - (*dup).lRN);
+
+                        extLengthL = min((*it).lR - (*it).lRN, (*dup).lR - (*dup).lRN);
+                        binLength = min(((*it).lR - (*it).lRN) / DATATYPE_WIDTH + 1,
+                                        ((*dup).lR - (*dup).lRN) / DATATYPE_WIDTH + 1);
+                        Bound = (*it).lR - extLengthL;
+                        extBin(RefFile, l1Bins, it, binLength, extLengthL, Bound);
+                        Bound = (*dup).lR - extLengthL;
+                        extBin(RefFile, l2Bins, dup, binLength, extLengthL, Bound);
+
+                        hDL = 0;
+                        for (int bin = 0; bin != binLength; ++bin) {
+                            if (l1Bins[bin] != l2Bins[bin])
+                                hDL += hammingDistance(l1Bins[bin], l2Bins[bin]);
+                        }
+
+                        if ((!hDL || hDL == 1) || (!hDR || hDR == 1)) {
+                            if ((*it).lR - (*it).lRN >= (*dup).lR - (*dup).lRN) {
+                                currL1Bound = (*it).lRN;
+                                currR1Bound = (*it).rR + ext;
+                            } else {
+                                currL1Bound = (*dup).lRN;
+                                currR1Bound = (*dup).rR + ext;
+                            }
+                        }
                     }
+
                     /* Right extension */
-                    cout << "RIGHT EXTENSION" << endl;
-                    extLength = min((*it).rRN - (*it).rR, (*dup).rRN - (*dup).rR);
-                    binLength = min(((*it).rRN - (*it).rR)/(DATATYPE_WIDTH+1) + 1, ((*dup).rRN - (*dup).rR)/(DATATYPE_WIDTH+1) + 1);
-                    Bound = (*it).rR + 2;
-                    extBin(RefFile, r1Bins, it, binLength, extLength, Bound);
-                    Bound = (*dup).rR + 2;
-                    extBin(RefFile, r2Bins, dup, binLength, extLength, Bound);
-                    for (int bin=0; bin!=binLength; ++bin) {
-                        if (r1Bins[bin] != r2Bins[bin])
-                            break;
+                    if (max((*it).rRN - (*it).rR, (*dup).rRN - (*dup).rR) > currExtLengthR) {
+                        currExtLengthR = max((*it).rRN - (*it).rR, (*dup).rRN - (*dup).rR);
+
+                        extLengthR = min((*it).rRN - (*it).rR, (*dup).rRN - (*dup).rR);
+                        binLength = min(((*it).rRN - (*it).rR) / (DATATYPE_WIDTH + 1) + 1,
+                                        ((*dup).rRN - (*dup).rR) / (DATATYPE_WIDTH + 1) + 1);
+                        Bound = (*it).rR + ext;
+                        extBin(RefFile, r1Bins, it, binLength, extLengthR, Bound);
+                        Bound = (*dup).rR + ext;
+                        extBin(RefFile, r2Bins, dup, binLength, extLengthR, Bound);
+
+                        hDR = 0;
+                        for (int bin = 0; bin != binLength; ++bin) {
+                            if (r1Bins[bin] != r2Bins[bin])
+                                hDR += hammingDistance(l1Bins[bin], l2Bins[bin]);
+                        }
+
+                        if ((!hDL || hDL == 1) || (!hDR || hDR == 1)) {
+                            if ((*it).rRN - (*it).rR >= (*dup).rRN - (*dup).rR) {
+                                currL2Bound = (*it).rR + ext;
+                                currR2Bound = (*it).rRN + ext;
+                            } else {
+                                currL2Bound = (*dup).rR + ext;
+                                currR2Bound = (*dup).rRN + ext;
+                            }
+                        }
+                    }
+
+                    /* Remove reads even if not good match */
+                    for (vector<seqData>::iterator seq=vecSeqInfo.begin(); seq!=vecSeqInfo.end(); ++seq) {
+                        if ((*it).lR > (*seq).start && (*it).rR < (*seq).end) {
+                            (*seq).start=0;
+                            (*seq).end=0;
+                        } else if  ((*dup).lR > (*seq).start && (*dup).rR < (*seq).end) {
+                            (*seq).start=0;
+                            (*seq).end=0;
+                        }
                     }
                 }
             }
-            MemExtVec.clear();
+            // cout << "currL1Bound: " << currL1Bound << " currR1Bound: " << currR1Bound << " currL2Bound: " << currL2Bound << " currR2Bound: " << currR2Bound << endl;
+            string sequence;
+            if (currExtLengthL && currExtLengthR) {
+                for (uint64_t pos = (currL1Bound / 2); pos != (currR1Bound / 2); ++pos) {
+                    currBin = RefFile.binReads[(pos * 2) / DATATYPE_WIDTH];
+                    offset = (pos * 2) % DATATYPE_WIDTH;
+                    currBin &= global_mask_right[(DATATYPE_WIDTH - offset) / 2 - 1];
+                    currBin >>= ((DATATYPE_WIDTH - 2) - offset);
+                    convertToNucl(currBin, sequence);
+                }
+                for (uint64_t pos = (currL2Bound / 2); pos != (currR2Bound / 2); ++pos) {
+                    currBin = RefFile.binReads[(pos * 2) / DATATYPE_WIDTH];
+                    offset = (pos * 2) % DATATYPE_WIDTH;
+                    currBin &= global_mask_right[(DATATYPE_WIDTH - offset) / 2 - 1];
+                    currBin >>= ((DATATYPE_WIDTH - 2) - offset);
+                    convertToNucl(currBin, sequence);
+                }
+            }
+            palFile << ">InvertedRepeat_" << distance(MemExtVec.begin(), it) << "\n";
+            palFile << sequence << "\n";
         }
+        MemExtVec.clear();
+        palFile.close();
+    }
 
-        /* Output any unsued query sequence */
-        m.lR=m.lQ=m.rR=m.rQ=0;
-        //printMemOnTerminal(refSeqInfo, querySeqInfo, m);
+    void removeTmp() {
+        char buffer[256];
+        memset(buffer,0,256);
 
         sprintf(buffer, "%s/revComp", commonData::nucmer_path);
+        remove(buffer);
+
+        sprintf(buffer, "%s/IR", commonData::nucmer_path);
         remove(buffer);
 
         sprintf(buffer, "%s", commonData::nucmer_path);
