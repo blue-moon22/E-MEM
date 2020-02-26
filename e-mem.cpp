@@ -676,6 +676,7 @@ int main (int argc, char *argv[])
     checkCommandLineOptions(options);
 
     // Open tmp files
+    cout << "Open tmp files" << endl;
     sprintf(commonData::nucmer_path, "%s/%d_tmp", getenv("NUCMER_E_MEM_OUTPUT_DIRPATH")?getenv("NUCMER_E_MEM_OUTPUT_DIRPATH"):".",getpid());
 
     tmpFilesInfo arrayTmpFile(NUM_TMP_FILES+2);
@@ -691,6 +692,7 @@ int main (int argc, char *argv[])
         RefFile.setFiles(filenames);
     }
 
+    cout << "Generate reverse complement" << endl;
     RefFile.generateRevComplement(0); // This routine also computes size and num sequences
     QueryFile.generateRevComplement(1);
 
@@ -704,6 +706,7 @@ int main (int argc, char *argv[])
     while (true)
     {
         for (i=0; i<commonData::d; i++) {
+            cout << "Build hashtable" << endl;
             if(RefFile.readChunks(0)){ // Encode sequence as 2-bits in RefFile object
                 processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
                 RefFile.setCurrPos(); // Add size (the number of nucl in the split file)
