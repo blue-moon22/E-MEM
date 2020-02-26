@@ -682,6 +682,7 @@ int main (int argc, char *argv[])
     tmpFilesInfo arrayTmpFile(NUM_TMP_FILES+2);
     arrayTmpFile.openFiles(ios::out|ios::binary, NUM_TMP_FILES+2);
 
+    cout << "Open fasta files" << endl;
     if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
         vector<string> filenames = {fasta1, fasta2};
         QueryFile.setFiles(filenames);

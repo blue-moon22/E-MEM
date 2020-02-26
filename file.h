@@ -687,6 +687,16 @@ class seqFileReadInfo {
                       content += line;
                   }
               }
+              // Catches the last sequence line
+              if( !strName.empty() ) {
+                  size += (line.length()+1);
+                  content += "\n";
+                  content += line;
+                  numSequences++;
+                  writeReverseComplementString(strName, content, revFile);
+                  content.clear();
+                  strName.clear();
+              }
 
               if (numSeqFiles == 2){
 
@@ -708,16 +718,16 @@ class seqFileReadInfo {
                       }
                   }
               }
-          }
-          // Catches the last sequence line
-          if( !strName.empty() ) {
-              size += (line.length()+1);
-              content += "\n";
-              content += line;
-              numSequences++;
-              writeReverseComplementString(strName, content, revFile);
-              content.clear();
-              strName.clear();
+              // Catches the last sequence line
+              if( !strName.empty() ) {
+                  size += (line.length()+1);
+                  content += "\n";
+                  content += line;
+                  numSequences++;
+                  writeReverseComplementString(strName, content, revFile);
+                  content.clear();
+                  strName.clear();
+              }
           }
           revFile.close();
       }
