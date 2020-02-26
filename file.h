@@ -57,6 +57,7 @@ class seqData {
     uint64_t start;
     uint64_t end;
     std::string seq;
+    int keep=1;
     seqData()
     {
         start=0;
@@ -66,6 +67,31 @@ class seqData {
     bool operator ()(const seqData &obj1, const seqData &obj2)
     {
       return (obj2.start>obj1.end?true:false);
+    }
+};
+
+class posData {
+public:
+    uint64_t L1Bound;
+    uint64_t R1Bound;
+    uint64_t L2Bound;
+    uint64_t R2Bound;
+    std::string seq;
+
+    posData() {}
+
+    bool operator () (const posData &obj1, const posData &obj2)
+    {
+        if (obj1.L1Bound < obj2.L1Bound) {
+            return true;
+        } else if (obj1.L1Bound > obj2.L1Bound) {
+            return false;
+        } else {
+            if (obj1.L2Bound < obj2.L2Bound)
+                return true;
+            else
+                return false;
+        }
     }
 };
 
@@ -557,7 +583,7 @@ class seqFileReadInfo {
 
       void generateSeqPos(vector<seqData> &vecSeqInfo) {
           seqData s;
-          uint64_t i=0,j=0,lineNum=1;
+          uint64_t i=0,j=0;
           string line;
           clearFileFlag();
           if (numSeqFiles >= 1){
@@ -567,6 +593,7 @@ class seqFileReadInfo {
                           s.start=CHARS2BITS(j);
                           s.end=CHARS2BITS(i-1);
                           s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
+                          s.seq += "_1";
                           vecSeqInfo.push_back(s);
                           s.seq.clear();
                           i+=RANDOM_SEQ_SIZE;
@@ -578,7 +605,16 @@ class seqFileReadInfo {
                   } else if( !strName.empty() ) {
                       i+=line.length();
                   }
-                  ++lineNum;
+              }
+              if( !strName.empty() ) {
+                  i+=line.length();
+                  s.start=CHARS2BITS(j);
+                  s.end=CHARS2BITS(i-1);
+                  s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
+                  s.seq += "_1";
+                  vecSeqInfo.push_back(s);
+                  s.seq.clear();
+                  strName.clear();
               }
               if (numSeqFiles == 2){
                   while(getline(file2, line).good() ){
@@ -587,6 +623,7 @@ class seqFileReadInfo {
                               s.start=CHARS2BITS(j);
                               s.end=CHARS2BITS(i-1);
                               s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
+                              s.seq += "_2";
                               vecSeqInfo.push_back(s);
                               s.seq.clear();
                               i+=RANDOM_SEQ_SIZE;
@@ -598,18 +635,18 @@ class seqFileReadInfo {
                       } else if( !strName.empty() ) {
                           i+=line.length();
                       }
-                      ++lineNum;
+                  }
+                  if( !strName.empty() ) {
+                      i+=line.length();
+                      s.start=CHARS2BITS(j);
+                      s.end=CHARS2BITS(i-1);
+                      s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
+                      s.seq += "_2";
+                      vecSeqInfo.push_back(s);
+                      s.seq.clear();
+                      strName.clear();
                   }
               }
-          }
-          if( !strName.empty() ) {
-              i+=line.length();
-              s.start=CHARS2BITS(j);
-              s.end=CHARS2BITS(i-1);
-              s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
-              vecSeqInfo.push_back(s);
-              s.seq.clear();
-              strName.clear();
           }
       }
 
@@ -708,7 +745,7 @@ public:
 
     void removeSeq(vector<seqData> &vecSeqInfo, vector<string> &filenames) {
         seqData s;
-        uint64_t i = 0, j = 0, lineNum = 1;
+        uint64_t i = 0, j = 0, lineNum = 0;
         string line;
         char buffer[256];
         memset(buffer,0,256);
@@ -726,10 +763,13 @@ public:
             file1.open(filenames[0], ios::in);
             while (getline(file1, line).good()) {
                 if (line[0] == '>') {
-                    if (vecSeqInfo[lineNum - 1].start && vecSeqInfo[lineNum - 1].end)
+                    if (vecSeqInfo[lineNum].keep) {
+                        line = strtok(const_cast<char *>(line.c_str()), " \t\n");
+                        line += "_1";
                         writeString(line, outFile);
+                    }
                 } else {
-                    if (vecSeqInfo[lineNum - 1].start && vecSeqInfo[lineNum - 1].end)
+                    if (vecSeqInfo[lineNum].keep)
                         writeString(line, outFile);
                     ++lineNum;
                 }
@@ -740,10 +780,13 @@ public:
                 file2.open(filenames[0], ios::in);
                 while (getline(file2, line).good()) {
                     if (line[0] == '>') {
-                        if (vecSeqInfo[lineNum - 1].start && vecSeqInfo[lineNum - 1].end)
+                        if (vecSeqInfo[lineNum].keep) {
+                            line = strtok(const_cast<char *>(line.c_str()), " \t\n");
+                            line += "_2";
                             writeString(line, outFile);
+                        }
                     } else {
-                        if (vecSeqInfo[lineNum - 1].start && vecSeqInfo[lineNum - 1].end)
+                        if (vecSeqInfo[lineNum].keep)
                             writeString(line, outFile);
                         ++lineNum;
                     }
@@ -887,6 +930,14 @@ class tmpFilesInfo {
           return true;
       else
           return false;
+    }
+
+    static bool uniqueIR(const posData &obj1, const posData &obj2)
+    {
+        if((obj1.L1Bound==obj2.L2Bound) && (obj1.R1Bound==obj2.R1Bound) && (obj1.L2Bound==obj2.L2Bound) && (obj1.R2Bound==obj2.R2Bound))
+            return true;
+        else
+            return false;
     }
 
     static bool myUniqueRev(const MemExt &obj1, const MemExt &obj2)
@@ -1241,7 +1292,7 @@ class tmpFilesInfo {
         return setBits;
     }
 
-    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo) {
+    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo, vector<posData> &posDataInfo) {
         streambuf *coutbuf=std::cout.rdbuf();
         int numFiles=0;
         MemExt m;
@@ -1249,6 +1300,8 @@ class tmpFilesInfo {
         int32_t offset=0;
         uint64_t Bound, currL1Bound, currR1Bound, currL2Bound, currR2Bound, ext=2, extLengthL, extLengthR, currExtLengthL, currExtLengthR, currBin;
         int binLength, hDL, hDR;
+        string currHeader;
+        posData p;
         char buffer[256];
         memset(buffer,0,256);
 
@@ -1279,10 +1332,6 @@ class tmpFilesInfo {
             //remove(buffer);
         }
 
-        /* File to hold sequences with inverted repeats */
-        setIRFile();
-
-        cout << "Change left and right query" << endl;
         uint64_t lQtmp, rQtmp;
         for (vector<MemExt>::iterator it = MemExtVec.begin(); it != MemExtVec.end(); ++it) {
             lQtmp = (((*it).lQN == 1)?((*it).lQN + ((*it).rQN - (*it).rQ) - 1):((*it).lQN + ((*it).rQN - (*it).rQ)));
@@ -1291,7 +1340,6 @@ class tmpFilesInfo {
             (*it).rQ = rQtmp;
         }
 
-        cout << "Sort memExt" << endl;
         vector<MemExt>::iterator last;
         sort(MemExtVec.begin(), MemExtVec.end(), MemExt());
         last = unique(MemExtVec.begin(), MemExtVec.end(), myUnique);
@@ -1299,8 +1347,7 @@ class tmpFilesInfo {
         last = unique(MemExtVec.begin(), last, myUniqueRev);
 
         vector<MemExt>::iterator lastIt = unique(MemExtVec.begin(), last, myUniqueQue);
-        cout << "Size of MemExtVec: " << MemExtVec.size() << endl;
-        cout << "Number of queries: " << distance(MemExtVec.begin(), lastIt) << endl;
+        posDataInfo.reserve(distance(MemExtVec.begin(), lastIt));
 
         for (vector<MemExt>::iterator it=MemExtVec.begin();it!=lastIt;++it) {
 
@@ -1310,11 +1357,20 @@ class tmpFilesInfo {
             currR1Bound = (*it).rR + ext;
             currL2Bound = (*it).rR + ext;
             currR2Bound = (*it).rRN + ext;
+            currHeader = ">InvertedRepeat";
 
-            for (vector<seqData>::iterator seq=vecSeqInfo.begin(); seq!=vecSeqInfo.end(); ++seq) {
-                if ((*it).lQ > (*seq).start && (*it).rQ < (*seq).end) {
-                    (*seq).start=0;
-                    (*seq).end=0;
+            for (vector<seqData>::iterator seqit=vecSeqInfo.begin(); seqit!=vecSeqInfo.end(); ++seqit) {
+                if ((*it).lQ > (*seqit).start && (*it).rQ < (*seqit).end) {
+                    currHeader += "_of_";
+                    currHeader += (*seqit).seq;
+                }
+            }
+
+            for (vector<seqData>::iterator seqit=vecSeqInfo.begin(); seqit!=vecSeqInfo.end(); ++seqit) {
+                if ((*it).lR > (*seqit).start && (*it).rR < (*seqit).end) {
+                    (*seqit).keep=0;
+                    currHeader += "_from_";
+                    currHeader += (*seqit).seq;
                 }
             }
 
@@ -1379,41 +1435,55 @@ class tmpFilesInfo {
                             }
                         }
                     }
-
                     /* Remove reads even if not good match */
-                    for (vector<seqData>::iterator seq=vecSeqInfo.begin(); seq!=vecSeqInfo.end(); ++seq) {
-                        if ((*it).lR > (*seq).start && (*it).rR < (*seq).end) {
-                            (*seq).start=0;
-                            (*seq).end=0;
-                        } else if  ((*dup).lR > (*seq).start && (*dup).rR < (*seq).end) {
-                            (*seq).start=0;
-                            (*seq).end=0;
+                    for (vector<seqData>::iterator seqit=vecSeqInfo.begin(); seqit!=vecSeqInfo.end(); ++seqit) {
+                        if ((*dup).lR > (*seqit).start && (*dup).rR < (*seqit).end) {
+                            (*seqit).keep=0;
+                            currHeader += ':';
+                            currHeader += (*seqit).seq;
                         }
                     }
                 }
             }
-            // cout << "currL1Bound: " << currL1Bound << " currR1Bound: " << currR1Bound << " currL2Bound: " << currL2Bound << " currR2Bound: " << currR2Bound << endl;
-            string sequence;
-            if (currExtLengthL && currExtLengthR) {
-                for (uint64_t pos = (currL1Bound / 2); pos != (currR1Bound / 2); ++pos) {
-                    currBin = RefFile.binReads[(pos * 2) / DATATYPE_WIDTH];
-                    offset = (pos * 2) % DATATYPE_WIDTH;
-                    currBin &= global_mask_right[(DATATYPE_WIDTH - offset) / 2 - 1];
-                    currBin >>= ((DATATYPE_WIDTH - 2) - offset);
-                    convertToNucl(currBin, sequence);
-                }
-                for (uint64_t pos = (currL2Bound / 2); pos != (currR2Bound / 2); ++pos) {
-                    currBin = RefFile.binReads[(pos * 2) / DATATYPE_WIDTH];
-                    offset = (pos * 2) % DATATYPE_WIDTH;
-                    currBin &= global_mask_right[(DATATYPE_WIDTH - offset) / 2 - 1];
-                    currBin >>= ((DATATYPE_WIDTH - 2) - offset);
-                    convertToNucl(currBin, sequence);
-                }
-            }
-            palFile << ">InvertedRepeat_" << distance(MemExtVec.begin(), it) << "\n";
-            palFile << sequence << "\n";
+            p.L1Bound=currL1Bound;
+            p.R1Bound=currR1Bound;
+            p.L2Bound=currL2Bound;
+            p.R2Bound=currR2Bound;
+            p.seq=currHeader;
+            posDataInfo.push_back(p);
         }
         MemExtVec.clear();
+    }
+
+    void writeInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo, vector<posData> &posDataInfo) {
+
+        uint64_t currBin;
+        uint32_t offset;
+        setIRFile();
+
+        sort(posDataInfo.begin(), posDataInfo.end(), posData());
+        vector<posData>::iterator last = unique(posDataInfo.begin(), posDataInfo.end(), uniqueIR);
+
+        for (vector<posData>::iterator it=posDataInfo.begin(); it!=last; ++it) {
+            string sequence;
+            for (uint64_t pos = (((*it).L1Bound) / 2); pos != (((*it).R1Bound) / 2); ++pos) {
+                currBin = RefFile.binReads[(pos * 2) / DATATYPE_WIDTH];
+                offset = (pos * 2) % DATATYPE_WIDTH;
+                currBin &= global_mask_right[(DATATYPE_WIDTH - offset) / 2 - 1];
+                currBin >>= ((DATATYPE_WIDTH - 2) - offset);
+                convertToNucl(currBin, sequence);
+            }
+            for (uint64_t pos = (((*it).L2Bound) / 2); pos != (((*it).R2Bound) / 2); ++pos) {
+                currBin = RefFile.binReads[(pos * 2) / DATATYPE_WIDTH];
+                offset = (pos * 2) % DATATYPE_WIDTH;
+                currBin &= global_mask_right[(DATATYPE_WIDTH - offset) / 2 - 1];
+                currBin >>= ((DATATYPE_WIDTH - 2) - offset);
+                convertToNucl(currBin, sequence);
+            }
+            palFile << (*it).seq << "\n";
+            palFile << sequence << "\n";
+        }
+
         palFile.close();
     }
 

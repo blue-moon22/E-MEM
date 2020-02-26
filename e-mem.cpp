@@ -730,6 +730,7 @@ int main (int argc, char *argv[])
 
     /*
      * Populate sequence information in vectors. Use this to get MEM
+     * Populate sequence information in vectors. Use this to get MEM
      * positions relative to the original sequences.
      */
     cout << "Create seqData" << endl;
@@ -741,7 +742,11 @@ int main (int argc, char *argv[])
     //QueryFile.generateSeqPos(querySeqInfo);
 
     cout << "Get inverted repeats" << endl;
-    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo);
+    vector<posData> invertedRepeatInfo;
+    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
+
+    cout << "Write inverted repeats" << endl;
+    arrayTmpFile.writeInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
 
     cout << "Write to outfile" << endl;
     OutFile.setFile(outFilename);
