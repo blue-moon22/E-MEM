@@ -694,8 +694,10 @@ int main (int argc, char *argv[])
     }
 
     cout << "Generate reverse complement" << endl;
-    RefFile.generateRevComplement(0); // This routine also computes size and num sequences
-    QueryFile.generateRevComplement(1);
+    QueryFile.generateRevComplement();
+    //RefFile.generateRevComplement(0); // This routine also computes size and num sequences
+    RefFile.setSize(QueryFile.getSize());
+    RefFile.setNumSequences(QueryFile.getNumSequences());
 
     /* Only reverse complement matches */
     QueryFile.setReverseFile();

@@ -259,8 +259,20 @@ class seqFileReadInfo {
           }
       }
 
+      void setNumSequences(uint64_t numSeq) {
+          numSequences = numSeq;
+      }
+
+      void setSize(uint64_t sizeSet) {
+          size = sizeSet;
+      }
+
       uint64_t &getNumSequences() {
           return numSequences;
+      }
+
+      uint64_t &getSize() {
+          return size;
       }
 
       void openFile(string s, fstream &file){
@@ -650,20 +662,18 @@ class seqFileReadInfo {
           }
       }
 
-      void generateRevComplement(uint32_t revComplement) {
+      void generateRevComplement() {
           string line,content;
           fstream revFile;
 
-          if (revComplement) {
-              char buffer[256];
-              memset(buffer,0,256);
-              sprintf(buffer, "%s/revComp", commonData::nucmer_path);
-              revFile.open(buffer, ios::out);
-              if (!revFile.is_open())
-              {
-                  cout << "ERROR: unable to open temporary reverse complement file" << endl;
-                  exit( EXIT_FAILURE );
-              }
+          char buffer[256];
+          memset(buffer,0,256);
+          sprintf(buffer, "%s/revComp", commonData::nucmer_path);
+          revFile.open(buffer, ios::out);
+          if (!revFile.is_open())
+          {
+              cout << "ERROR: unable to open temporary reverse complement file" << endl;
+              exit( EXIT_FAILURE );
           }
 
           clearFileFlag();
