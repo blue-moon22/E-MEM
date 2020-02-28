@@ -187,7 +187,6 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
         }
     } // loop until extension reached to the left
 
-    // Again not 100% sure what this does but think just discarding k-mers dominated with Ns
     if (totalRBits-lRef+2 < static_cast<uint64_t>(commonData::minMemLen))
         return;
 
@@ -291,7 +290,6 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
      */
     if ((lRef?lRef!=RefNpos.left:!RefNpos.left) && (rQue?rQue!=QueryNpos.right:!QueryNpos.right)){
         if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left))
-            // cout << "Palindrome detected" << endl;
             arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, RefNpos, QueryNpos, QueryFile, RefFile);
     }
 }
@@ -372,20 +370,13 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
     }
 }
 
-void processQuery(Knode* &refHash, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
+void searchQuery(Knode* &refHash, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
 {
-    QueryFile.clearFileFlag();
     QueryFile.resetCurrPos();
-    for (int32_t i=0; i<commonData::d; i++) {
-        if(QueryFile.readChunks(1)){ // readChunks to encode sequence into 2-bits in QueryFile object
-            reportMEM(refHash, RefFile.totalBases-1, QueryFile.totalBases-1, RefFile, QueryFile, arrayTmpFile);
-            QueryFile.setCurrPos();
-            QueryFile.clearMapForNs();
-        }
-        else
-            break;
-    }
-    QueryFile.clearTmpString();
+    reportMEM(refHash, RefFile.totalBases-1, QueryFile.totalBases-1, RefFile, QueryFile, arrayTmpFile);
+    // QueryFile.setCurrPos();
+    // QueryFile.clearMapForNs();
+    // QueryFile.clearTmpString();
 }
 
 void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile)
@@ -395,6 +386,7 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
     Knode *refHash;
 
     numberOfKmers = ceil((RefFile.totalBases-commonData::kmerSize/2+1)/((commonData::minMemLen/2-commonData::kmerSize/2 + 1)) + 1);
+    cout << "number of kmers: " << numberOfKmers << endl;
 
     /* Set the size of the hash table to the numberofKmers. */
     for (n=0; n<450; ++n)
@@ -405,6 +397,7 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
             break;
         }
     }
+    cout << "Hashtable size: " << hashTableSize[hashTableSizeIndex] << endl;
 
     Knode::currHashTabSize = hashTableSize[hashTableSizeIndex];  //Store the size of the hash table.
     if (hashTableSizeIndex)
@@ -413,11 +406,12 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
         Knode::prevHashTabSize = 3;
 
     /* Create the refHash for K-mers. */
+    cout << "allocate hashtable" << endl;
     refHash = new Knode[Knode::currHashTabSize];
-
+    cout << "build hashtable" << endl;
     buildRefHash(refHash, CHARS2BITS(RefFile.totalBases-1), RefFile);
-
-    processQuery(refHash, RefFile, QueryFile, arrayTmpFile);
+    cout << "Query search" << endl;
+    searchQuery(refHash, RefFile, QueryFile, arrayTmpFile);
 
     delete [] refHash;
 }
@@ -702,17 +696,22 @@ int main (int argc, char *argv[])
     /* Only reverse complement matches */
     QueryFile.setReverseFile();
 
-    arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(), QueryFile.getNumSequences());
-    RefFile.allocBinArray();
+    arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(0), QueryFile.getNumSequences());
+    cout << "Size: " << QueryFile.getSize() << endl;
+    RefFile.allocBinArray(1);
+    cout << "Size: " << RefFile.getSize() << endl;
     RefFile.clearFileFlag();
 
-    while (true)
+    QueryFile.clearFileFlag();
+    cout << "Encode Query sequences" << endl;
+    if (QueryFile.readChunks())
     {
         for (i=0; i<commonData::d; i++) {
-            cout << "Build hashtable" << endl;
-            if(RefFile.readChunks(0)){ // Encode sequence as 2-bits in RefFile object
+            cout << "Encode Ref sequences" << endl;
+            if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
+                cout << "Build Ref hashtable" << endl;
                 processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
-                RefFile.setCurrPos(); // Add size (the number of nucl in the split file)
+                RefFile.setCurrPos();
                 RefFile.clearMapForNs(); // clear block of Ns from memory
             }
             else
@@ -724,7 +723,6 @@ int main (int argc, char *argv[])
          */
         cout << "Merge to make temp files" << endl;
         arrayTmpFile.mergeMemExtVector();
-        break;
     }
 
     /*

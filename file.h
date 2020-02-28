@@ -151,8 +151,7 @@ class seqFileReadInfo {
         int chooseLetter=0;
 
         /* Processing the sequences by encoding the base pairs into 2 bits. */
-            for ( std::string::iterator it=str.begin(); it!=str.end(); ++it)
-            {
+        for ( std::string::iterator it=str.begin(); it!=str.end(); ++it){
             if (totalBases == sz){
               strTmp += *it;
               continue;
@@ -295,6 +294,7 @@ class seqFileReadInfo {
               }
           }
           openFile(buffer, file1);
+          numSeqFiles = 1;
       }
 
       void closeFile() {
@@ -329,9 +329,10 @@ class seqFileReadInfo {
           }
       }
 
-      uint64_t allocBinArray()
+      uint64_t allocBinArray(int split)
       {
-          size = size/commonData::d;
+          if (split)
+              size = size/commonData::d;
           binReadSize = floor((size+numSequences*RANDOM_SEQ_SIZE+commonData::d)/32+4);
           binReads = new uint64_t[binReadSize+1];
           memset(binReads, 0, sizeof(uint64_t)*(binReadSize+1));
@@ -446,7 +447,7 @@ class seqFileReadInfo {
           currPos=0;
       }
 
-      bool readChunks(uint64_t revComplement)
+      bool readChunks()
       {
           string line;
           uint64_t blockNCount=0;
@@ -487,7 +488,26 @@ class seqFileReadInfo {
                       processInput(line, sz, blockNCount);
                   }
               }
-              if (numSeqFiles == 2 && !revComplement) {
+
+              if( !strName.empty() ){
+                  if ((totalBases%32)!=0)
+                  {
+                      uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
+                      binReads[binReadsLocation] <<= (DATATYPE_WIDTH-offset);
+                      binReadsLocation++;
+                      binReads[binReadsLocation]=0;
+                  }
+                  if (blockNCount){
+                      blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
+                      blockNCount=0;
+                  }
+                  if (!strTmp.size())
+                      strName.clear();
+                  if (numSeqFiles == 1)
+                      return true;
+              }
+
+              if (numSeqFiles == 2) {
                   while(getline( file2, line ).good()){
                       if(line[0] == '>' || (totalBases == sz)){
                           if( !strName.empty()){
@@ -519,24 +539,25 @@ class seqFileReadInfo {
                       }
                   }
               }
+
+              if( !strName.empty() ){
+                  if ((totalBases%32)!=0)
+                  {
+                      uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
+                      binReads[binReadsLocation] <<= (DATATYPE_WIDTH-offset);
+                      binReadsLocation++;
+                      binReads[binReadsLocation]=0;
+                  }
+                  if (blockNCount){
+                      blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
+                      blockNCount=0;
+                  }
+                  if (!strTmp.size())
+                      strName.clear();
+                  return true;
+              }
           }
 
-          if( !strName.empty() ){
-              if ((totalBases%32)!=0)
-              {
-                  uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
-                  binReads[binReadsLocation] <<= (DATATYPE_WIDTH-offset);
-                  binReadsLocation++;
-                  binReads[binReadsLocation]=0;
-              }
-              if (blockNCount){
-                  blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
-                  blockNCount=0;
-              }
-              if (!strTmp.size())
-                  strName.clear();
-              return true;
-          }
           return false;
       }
 
@@ -1033,11 +1054,9 @@ class tmpFilesInfo {
        if (rRef-lRef+2 >= static_cast<uint64_t>(commonData::minMemLen)) {
            if (!(commonData::d==1 && commonData::numThreads==1) && checkMEMExt(lRef, rRef, lQue, rQue, QueryFile, RefFile)) {
                #pragma omp critical(writeVector)
-               // cout << "Writing to vector" << endl;
                writeToVector(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef, currPosQ+QueryNpos.left, currPosQ+QueryNpos.right, currPosR+RefNpos.left, currPosR+RefNpos.right);
            }else {
                #pragma omp critical(writeFile)
-               // cout << "Writing to tmp file" << endl;
                writeToFile(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef, currPosQ+QueryNpos.left, currPosQ+QueryNpos.right, currPosR+RefNpos.left, currPosR+RefNpos.right);
            }
            return true;
@@ -1442,7 +1461,7 @@ class tmpFilesInfo {
                         hDR = 0;
                         for (int bin = 0; bin != binLength; ++bin) {
                             if (r1Bins[bin] != r2Bins[bin])
-                                hDR += hammingDistance(l1Bins[bin], l2Bins[bin]);
+                                hDR += hammingDistance(r1Bins[bin], r2Bins[bin]);
                         }
 
                         if ((!hDL || hDL == 1) || (!hDR || hDR == 1)) {
@@ -1455,6 +1474,7 @@ class tmpFilesInfo {
                             }
                         }
                     }
+
                     /* Remove reads even if not good match */
                     for (vector<seqData>::iterator seqit=vecSeqInfo.begin(); seqit!=vecSeqInfo.end(); ++seqit) {
                         if ((*dup).lR > (*seqit).start && (*dup).rR < (*seqit).end) {
