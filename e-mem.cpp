@@ -97,7 +97,7 @@ void buildRefHash(Knode* &refHash, uint64_t totalBits, seqFileReadInfo &RefFile)
  * Input: name : reference sequence string for output
  *
  */
-void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos)
+void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos, vector<SeqPos> &SeqPosVec)
 {
     /*
      * lRef and lQue are local variables for left extension of
@@ -289,8 +289,16 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
      * Also excludes N mismatches
      */
     if ((lRef?lRef!=RefNpos.left:!RefNpos.left) && (rQue?rQue!=QueryNpos.right:!QueryNpos.right)){
-        if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left))
+        if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left)) {
+            for (vector<SeqPos>::iterator it=SeqPosVec.begin();it!=SeqPosVec.end();++it) {
+                if ((*it).lR == lRef && (*it).rR == rRef && (*it).lQ == lQue && (*it).rQ == rQue) {
+                    return;
+                }
+            }
             arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, RefNpos, QueryNpos, QueryFile, RefFile);
+            SeqPos seqPos(lRef, rRef, lQue, rQue);
+            SeqPosVec.push_back(seqPos);
+        }
     }
 }
 
@@ -305,6 +313,7 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
         uint32_t first=1;
         int kmerWithNs=0;
         mapObject QueryNpos, RefNpos;
+        vector<SeqPos> SeqPosVec;
         vector<mapObject>::iterator it;
         it = upper_bound(QueryFile.blockOfNs.begin(), QueryFile.blockOfNs.end(), 0, mapObject());
 
@@ -353,9 +362,9 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
               currKmer |= ((QueryFile.binReads[j+1] & global_mask_left[offset/2-1])>>(DATATYPE_WIDTH-offset));
 
             if (kmerWithNs){
-             /* Do not process this Kmer, Ns in it */
-             kmerWithNs=0;
-             continue;
+                /* Do not process this Kmer, Ns in it */
+                kmerWithNs=0;
+                continue;
             }
             /* Find the K-mer in the refHash */
             uint64_t *dataPtr=NULL;
@@ -363,7 +372,7 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
             {
                 // We have a match
                 for (uint64_t n=1; n<=dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                    helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases), RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos);
+                    helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases), RefFile,QueryFile, arrayTmpFile, RefNpos, QueryNpos, SeqPosVec);
                 }
             }
         }
@@ -386,7 +395,7 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
     Knode *refHash;
 
     numberOfKmers = ceil((RefFile.totalBases-commonData::kmerSize/2+1)/((commonData::minMemLen/2-commonData::kmerSize/2 + 1)) + 1);
-    cout << "number of kmers: " << numberOfKmers << endl;
+    //cout << "number of kmers: " << numberOfKmers << endl;
 
     /* Set the size of the hash table to the numberofKmers. */
     for (n=0; n<450; ++n)
@@ -397,7 +406,7 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
             break;
         }
     }
-    cout << "Hashtable size: " << hashTableSize[hashTableSizeIndex] << endl;
+    // cout << "Hashtable size: " << hashTableSize[hashTableSizeIndex] << endl;
 
     Knode::currHashTabSize = hashTableSize[hashTableSizeIndex];  //Store the size of the hash table.
     if (hashTableSizeIndex)
@@ -697,9 +706,9 @@ int main (int argc, char *argv[])
     QueryFile.setReverseFile();
 
     arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(0), QueryFile.getNumSequences());
-    cout << "Size: " << QueryFile.getSize() << endl;
+    //cout << "Size: " << QueryFile.getSize() << endl;
     RefFile.allocBinArray(1);
-    cout << "Size: " << RefFile.getSize() << endl;
+    //cout << "Size: " << RefFile.getSize() << endl;
     RefFile.clearFileFlag();
 
     QueryFile.clearFileFlag();
@@ -721,7 +730,7 @@ int main (int argc, char *argv[])
         /*
          * Process MemExt list and write to file
          */
-        cout << "Merge to make temp files" << endl;
+        cout << "If MemExtVec, merge to make temp files" << endl;
         arrayTmpFile.mergeMemExtVector();
     }
 

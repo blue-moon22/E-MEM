@@ -842,6 +842,24 @@ public:
     }
 };
 
+class SeqPos {
+public:
+    uint64_t lR;
+    uint64_t rR;
+    uint64_t lQ;
+    uint64_t rQ;
+    SeqPos() {
+    }
+
+    SeqPos(uint64_t lr, uint64_t rr, uint64_t lq, uint64_t rq)
+    {
+        lR=lr;
+        rR=rr;
+        lQ=lq;
+        rQ=rq;
+    }
+};
+
 class MemExt {
   public:
     uint64_t lR;
@@ -1373,6 +1391,7 @@ class tmpFilesInfo {
 
         uint64_t lQtmp, rQtmp;
         for (vector<MemExt>::iterator it = MemExtVec.begin(); it != MemExtVec.end(); ++it) {
+            // cout << "lR: " << (*it).lR << " rR: " << (*it).rR << " lQ: " << (*it).lQ << " rQ: " << (*it).rQ << endl;
             lQtmp = (((*it).lQN == 1)?((*it).lQN + ((*it).rQN - (*it).rQ) - 1):((*it).lQN + ((*it).rQN - (*it).rQ)));
             rQtmp = (((*it).lQN == 1)?((*it).lQN + ((*it).rQN - (*it).lQ) - 1):((*it).lQN + ((*it).rQN - (*it).lQ)));
             (*it).lQ = lQtmp;
