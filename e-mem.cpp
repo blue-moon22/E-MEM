@@ -295,6 +295,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
                     return;
                 }
             }
+            cout << "Left Query position: " << lQue << endl;
             arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, RefNpos, QueryNpos, QueryFile, RefFile);
             SeqPos seqPos(lRef, rRef, lQue, rQue);
             SeqPosVec.push_back(seqPos);
@@ -706,7 +707,7 @@ int main (int argc, char *argv[])
     QueryFile.setReverseFile();
 
     arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(0), QueryFile.getNumSequences());
-    //cout << "Size: " << QueryFile.getSize() << endl;
+    cout << "Size: " << QueryFile.getSize() << endl;
     RefFile.allocBinArray(1);
     //cout << "Size: " << RefFile.getSize() << endl;
     RefFile.clearFileFlag();
