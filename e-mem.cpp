@@ -97,7 +97,7 @@ void buildRefHash(Knode* &refHash, uint64_t totalBits, seqFileReadInfo &RefFile)
  * Input: name : reference sequence string for output
  *
  */
-void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos, vector<SeqPos> &SeqPosVec)
+void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos, uint64_t &rQue)
 {
     /*
      * lRef and lQue are local variables for left extension of
@@ -106,7 +106,8 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
      */
     uint64_t lRef=currRPos, lQue=currQPos; // Keeping lRef on currRPos-this makes offset computation simpler
     uint64_t offsetR=0,offsetQ=0;
-    uint64_t rRef=currRPos+commonData::kmerSize, rQue=currQPos+commonData::kmerSize; // one character ahead of current match
+    uint64_t rRef=currRPos+commonData::kmerSize;
+    rQue=currQPos+commonData::kmerSize; // one character ahead of current match
     uint64_t currR=0, currQ=0;
     int i=0,j=0,mismatch=0;
     uint64_t matchSize=0;
@@ -290,15 +291,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
      */
     if ((lRef?lRef!=RefNpos.left:!RefNpos.left) && (rQue?rQue!=QueryNpos.right:!QueryNpos.right)){
         if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left)) {
-            for (vector<SeqPos>::iterator it=SeqPosVec.begin();it!=SeqPosVec.end();++it) {
-                if ((*it).lR == lRef && (*it).rR == rRef && (*it).lQ == lQue && (*it).rQ == rQue) {
-                    return;
-                }
-            }
-            cout << "Left Query position: " << lQue << endl;
             arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, RefNpos, QueryNpos, QueryFile, RefFile);
-            SeqPos seqPos(lRef, rRef, lQue, rQue);
-            SeqPosVec.push_back(seqPos);
         }
     }
 }
@@ -309,7 +302,7 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
     uint32_t copyBits=0;
     #pragma omp parallel num_threads(commonData::numThreads)
     {
-        uint64_t currKmer=0, j=0;
+        uint64_t currKmer=0, j=0, rQue=0;
         int32_t offset=0;
         uint32_t first=1;
         int kmerWithNs=0;
@@ -368,12 +361,16 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                 continue;
             }
             /* Find the K-mer in the refHash */
-            uint64_t *dataPtr=NULL;
-            if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize/2 - 1], dataPtr)) // dataPtr is position of the kmer in reference
-            {
-                // We have a match
-                for (uint64_t n=1; n<=dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                    helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases), RefFile,QueryFile, arrayTmpFile, RefNpos, QueryNpos, SeqPosVec);
+            if (currKmerPos > rQue) {
+                uint64_t *dataPtr = NULL;
+                if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize / 2 - 1],
+                                      dataPtr)) // dataPtr is position of the kmer in reference
+                {
+                    // We have a match
+                    for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
+                        helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),
+                                        RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQue);
+                    }
                 }
             }
         }
@@ -416,11 +413,11 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
         Knode::prevHashTabSize = 3;
 
     /* Create the refHash for K-mers. */
-    cout << "allocate hashtable" << endl;
+    cout << "Allocating hashtable..." << endl;
     refHash = new Knode[Knode::currHashTabSize];
-    cout << "build hashtable" << endl;
+    cout << "Building Ref hashtable..." << endl;
     buildRefHash(refHash, CHARS2BITS(RefFile.totalBases-1), RefFile);
-    cout << "Query search" << endl;
+    cout << "Searching query..." << endl;
     searchQuery(refHash, RefFile, QueryFile, arrayTmpFile);
 
     delete [] refHash;
@@ -680,13 +677,13 @@ int main (int argc, char *argv[])
     checkCommandLineOptions(options);
 
     // Open tmp files
-    cout << "Open tmp files" << endl;
+    cout << "Opening tmp files..." << endl;
     sprintf(commonData::nucmer_path, "%s/%d_tmp", getenv("NUCMER_E_MEM_OUTPUT_DIRPATH")?getenv("NUCMER_E_MEM_OUTPUT_DIRPATH"):".",getpid());
 
     tmpFilesInfo arrayTmpFile(NUM_TMP_FILES+2);
     arrayTmpFile.openFiles(ios::out|ios::binary, NUM_TMP_FILES+2);
 
-    cout << "Open fasta files" << endl;
+    cout << "Opening fasta files..." << endl;
     if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
         vector<string> filenames = {fasta1, fasta2};
         QueryFile.setFiles(filenames);
@@ -697,7 +694,7 @@ int main (int argc, char *argv[])
         RefFile.setFiles(filenames);
     }
 
-    cout << "Generate reverse complement" << endl;
+    cout << "Generating reverse complement..." << endl;
     QueryFile.generateRevComplement();
     //RefFile.generateRevComplement(0); // This routine also computes size and num sequences
     RefFile.setSize(QueryFile.getSize());
@@ -707,19 +704,18 @@ int main (int argc, char *argv[])
     QueryFile.setReverseFile();
 
     arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(0), QueryFile.getNumSequences());
-    cout << "Size: " << QueryFile.getSize() << endl;
+    //cout << "Size: " << QueryFile.getSize() << endl;
     RefFile.allocBinArray(1);
     //cout << "Size: " << RefFile.getSize() << endl;
     RefFile.clearFileFlag();
 
     QueryFile.clearFileFlag();
-    cout << "Encode Query sequences" << endl;
+    cout << "Encoding Query sequences" << endl;
     if (QueryFile.readChunks())
     {
         for (i=0; i<commonData::d; i++) {
-            cout << "Encode Ref sequences" << endl;
+            cout << "Encoding Ref sequences..." << endl;
             if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
-                cout << "Build Ref hashtable" << endl;
                 processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
                 RefFile.setCurrPos();
                 RefFile.clearMapForNs(); // clear block of Ns from memory
@@ -731,7 +727,7 @@ int main (int argc, char *argv[])
         /*
          * Process MemExt list and write to file
          */
-        cout << "If MemExtVec, merge to make temp files" << endl;
+        //cout << "If MemExtVec, merge to make temp files" << endl;
         arrayTmpFile.mergeMemExtVector();
     }
 
@@ -747,7 +743,7 @@ int main (int argc, char *argv[])
      * Populate sequence information in vectors. Use this to get MEM
      * positions relative to the original sequences.
      */
-    cout << "Create seqData" << endl;
+    cout << "Creating seqData..." << endl;
     vector<seqData> refSeqInfo;
     // vector<seqData> querySeqInfo;
     refSeqInfo.reserve(RefFile.getNumSequences());
@@ -755,14 +751,14 @@ int main (int argc, char *argv[])
     RefFile.generateSeqPos(refSeqInfo);
     //QueryFile.generateSeqPos(querySeqInfo);
 
-    cout << "Get inverted repeats" << endl;
+    cout << "Getting inverted repeats..." << endl;
     vector<posData> invertedRepeatInfo;
     arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
 
-    cout << "Write inverted repeats" << endl;
+    cout << "Writing inverted repeats..." << endl;
     arrayTmpFile.writeInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
 
-    cout << "Write to outfile" << endl;
+    cout << "Writing to outfile..." << endl;
     OutFile.setFile(outFilename);
     if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
         vector<string> filenames = {fasta1, fasta2};
