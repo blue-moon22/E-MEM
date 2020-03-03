@@ -866,10 +866,6 @@ class MemExt {
     uint64_t rR;
     uint64_t lQ;
     uint64_t rQ;
-    uint64_t lRN;
-    uint64_t rRN;
-    uint64_t lQN;
-    uint64_t rQN;
     MemExt() {
     }
 
@@ -912,30 +908,21 @@ class tmpFilesInfo {
       return false;
     }
 
-    void writeToFile(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR, uint64_t lQN, uint64_t rQN, uint64_t lRN, uint64_t rRN) {
+    void writeToFile(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR) {
         MemExt m;
         m.lQ=lQ;
         m.lR=lR;
         m.rQ=rQ;
         m.rR=rR;
-        m.lQN=lQN;
-        m.lRN=lRN;
-        m.rQN=rQN;
-        m.rRN=rRN;
         TmpFiles[m.lQ/numMemsInFile].write((char *)&m, sizeof(MemExt));
     }
 
-    void writeToVector(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR, uint64_t lQN, uint64_t rQN, uint64_t lRN, uint64_t rRN) {
-        // cout << "Writing mems into vector" << endl;
+    void writeToVector(uint64_t lQ, uint64_t rQ, uint64_t lR, uint64_t rR) {
         MemExt m;
         m.lQ=lQ;
         m.lR=lR;
         m.rQ=rQ;
         m.rR=rR;
-        m.lQN=lQN;
-        m.lRN=lRN;
-        m.rQN=rQN;
-        m.rRN=rRN;
         MemExtVec.emplace_back(m);
     }
 
@@ -1065,17 +1052,17 @@ class tmpFilesInfo {
         return TmpFiles[fIndex];
     }
 
-    bool writeMemInTmpFiles(uint64_t &lRef, uint64_t &rRef, uint64_t &lQue, uint64_t &rQue, mapObject &RefNpos, mapObject &QueryNpos, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile) {
+    bool writeMemInTmpFiles(uint64_t &lRef, uint64_t &rRef, uint64_t &lQue, uint64_t &rQue, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile) {
        MemExt m;
        uint64_t currPosQ = CHARS2BITS(QueryFile.getCurrPos());
        uint64_t currPosR = CHARS2BITS(RefFile.getCurrPos());
        if (rRef-lRef+2 >= static_cast<uint64_t>(commonData::minMemLen)) {
            if (!(commonData::d==1 && commonData::numThreads==1) && checkMEMExt(lRef, rRef, lQue, rQue, QueryFile, RefFile)) {
                #pragma omp critical(writeVector)
-               writeToVector(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef, currPosQ+QueryNpos.left, currPosQ+QueryNpos.right, currPosR+RefNpos.left, currPosR+RefNpos.right);
+               writeToVector(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef);
            }else {
                #pragma omp critical(writeFile)
-               writeToFile(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef, currPosQ+QueryNpos.left, currPosQ+QueryNpos.right, currPosR+RefNpos.left, currPosR+RefNpos.right);
+               writeToFile(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef);
            }
            return true;
        }else
@@ -1293,7 +1280,7 @@ class tmpFilesInfo {
 
             for (vector<MemExt>::iterator it=MemExtVec.begin(); it != last; ++it) {
                 if ((*it).lQ || (*it).rQ || (*it).lR || (*it).rR ) {
-                    writeToFile((*it).lQ, (*it).rQ, (*it).lR, (*it).rR, (*it).lQN, (*it).rQN, (*it).lRN, (*it).rRN);
+                    writeToFile((*it).lQ, (*it).rQ, (*it).lR, (*it).rR);
                 }
             }
         }
@@ -1349,11 +1336,12 @@ class tmpFilesInfo {
         return setBits;
     }
 
-    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo, vector<posData> &posDataInfo) {
+    void getInvertedRepeats(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, vector<seqData> &vecSeqInfo, vector<posData> &posDataInfo) {
         streambuf *coutbuf=std::cout.rdbuf();
         int numFiles=0;
         MemExt m;
         vector<uint64_t> l1Bins, l2Bins, r1Bins, r2Bins;
+        mapObject QueryNpos, RefNpos1, RefNpos2;
         int32_t offset=0;
         uint64_t Bound, currL1Bound, currR1Bound, currL2Bound, currR2Bound, ext=2, extLengthL, extLengthR, currExtLengthL, currExtLengthR, currBin;
         int binLength, hDL, hDR;
@@ -1389,15 +1377,6 @@ class tmpFilesInfo {
             //remove(buffer);
         }
 
-        uint64_t lQtmp, rQtmp;
-        for (vector<MemExt>::iterator it = MemExtVec.begin(); it != MemExtVec.end(); ++it) {
-            // cout << "lR: " << (*it).lR << " rR: " << (*it).rR << " lQ: " << (*it).lQ << " rQ: " << (*it).rQ << endl;
-            lQtmp = (((*it).lQN == 1)?((*it).lQN + ((*it).rQN - (*it).rQ) - 1):((*it).lQN + ((*it).rQN - (*it).rQ)));
-            rQtmp = (((*it).lQN == 1)?((*it).lQN + ((*it).rQN - (*it).lQ) - 1):((*it).lQN + ((*it).rQN - (*it).lQ)));
-            (*it).lQ = lQtmp;
-            (*it).rQ = rQtmp;
-        }
-
         vector<MemExt>::iterator last;
         sort(MemExtVec.begin(), MemExtVec.end(), MemExt());
         last = unique(MemExtVec.begin(), MemExtVec.end(), myUnique);
@@ -1409,12 +1388,13 @@ class tmpFilesInfo {
 
         for (vector<MemExt>::iterator it=MemExtVec.begin();it!=lastIt;++it) {
 
-            currExtLengthL = (*it).lR - (*it).lRN;
-            currExtLengthR = (*it).rRN - (*it).rR;
-            currL1Bound = (*it).lRN;
+            RefFile.getKmerLeftnRightBoundForNs((*it).lR, RefNpos1);
+            currExtLengthL = (*it).lR - RefNpos1.left;
+            currExtLengthR = RefNpos1.right - (*it).rR;
+            currL1Bound = RefNpos1.left;
             currR1Bound = (*it).rR + ext;
             currL2Bound = (*it).rR + ext;
-            currR2Bound = (*it).rRN + ext;
+            currR2Bound = RefNpos1.right + ext;
             currHeader = ">InvertedRepeat";
 
             for (vector<seqData>::iterator seqit=vecSeqInfo.begin(); seqit!=vecSeqInfo.end(); ++seqit) {
@@ -1436,13 +1416,14 @@ class tmpFilesInfo {
             ++dup;
             for (;dup!=last;++dup){
                 if ((*it).rQ == (*dup).rQ && (*it).lQ == (*dup).lQ) {
+                    RefFile.getKmerLeftnRightBoundForNs((*dup).lR, RefNpos2);
                     /* Left extension */
-                    if (max((*it).lR - (*it).lRN, (*dup).lR - (*dup).lRN) > currExtLengthL) {
-                        currExtLengthL = max((*it).lR - (*it).lRN, (*dup).lR - (*dup).lRN);
+                    if (max((*it).lR - RefNpos1.left, (*dup).lR - RefNpos2.left) > currExtLengthL) {
+                        currExtLengthL = max((*it).lR - RefNpos1.left, (*dup).lR - RefNpos2.left);
 
-                        extLengthL = min((*it).lR - (*it).lRN, (*dup).lR - (*dup).lRN);
-                        binLength = min(((*it).lR - (*it).lRN) / DATATYPE_WIDTH + 1,
-                                        ((*dup).lR - (*dup).lRN) / DATATYPE_WIDTH + 1);
+                        extLengthL = min((*it).lR - RefNpos1.left, (*dup).lR - RefNpos2.left);
+                        binLength = min(((*it).lR - RefNpos1.left) / DATATYPE_WIDTH + 1,
+                                        ((*dup).lR - RefNpos2.left) / DATATYPE_WIDTH + 1);
                         Bound = (*it).lR - extLengthL;
                         extBin(RefFile, l1Bins, it, binLength, extLengthL, Bound);
                         Bound = (*dup).lR - extLengthL;
@@ -1455,23 +1436,23 @@ class tmpFilesInfo {
                         }
 
                         if ((!hDL || hDL == 1) || (!hDR || hDR == 1)) {
-                            if ((*it).lR - (*it).lRN >= (*dup).lR - (*dup).lRN) {
-                                currL1Bound = (*it).lRN;
+                            if ((*it).lR - RefNpos1.left >= (*dup).lR - RefNpos2.left) {
+                                currL1Bound = RefNpos1.left;
                                 currR1Bound = (*it).rR + ext;
                             } else {
-                                currL1Bound = (*dup).lRN;
+                                currL1Bound = RefNpos2.left;
                                 currR1Bound = (*dup).rR + ext;
                             }
                         }
                     }
 
                     /* Right extension */
-                    if (max((*it).rRN - (*it).rR, (*dup).rRN - (*dup).rR) > currExtLengthR) {
-                        currExtLengthR = max((*it).rRN - (*it).rR, (*dup).rRN - (*dup).rR);
+                    if (max(RefNpos1.right - (*it).rR, RefNpos2.right - (*dup).rR) > currExtLengthR) {
+                        currExtLengthR = max(RefNpos1.right - (*it).rR, RefNpos2.right - (*dup).rR);
 
-                        extLengthR = min((*it).rRN - (*it).rR, (*dup).rRN - (*dup).rR);
-                        binLength = min(((*it).rRN - (*it).rR) / (DATATYPE_WIDTH + 1) + 1,
-                                        ((*dup).rRN - (*dup).rR) / (DATATYPE_WIDTH + 1) + 1);
+                        extLengthR = min(RefNpos1.right - (*it).rR, RefNpos2.right - (*dup).rR);
+                        binLength = min((RefNpos1.right - (*it).rR) / (DATATYPE_WIDTH + 1) + 1,
+                                        (RefNpos2.right - (*dup).rR) / (DATATYPE_WIDTH + 1) + 1);
                         Bound = (*it).rR + ext;
                         extBin(RefFile, r1Bins, it, binLength, extLengthR, Bound);
                         Bound = (*dup).rR + ext;
@@ -1484,12 +1465,12 @@ class tmpFilesInfo {
                         }
 
                         if ((!hDL || hDL == 1) || (!hDR || hDR == 1)) {
-                            if ((*it).rRN - (*it).rR >= (*dup).rRN - (*dup).rR) {
+                            if (RefNpos1.right - (*it).rR >= RefNpos2.right - (*dup).rR) {
                                 currL2Bound = (*it).rR + ext;
-                                currR2Bound = (*it).rRN + ext;
+                                currR2Bound = RefNpos1.right + ext;
                             } else {
                                 currL2Bound = (*dup).rR + ext;
-                                currR2Bound = (*dup).rRN + ext;
+                                currR2Bound = RefNpos2.right + ext;
                             }
                         }
                     }
@@ -1504,6 +1485,7 @@ class tmpFilesInfo {
                     }
                 }
             }
+            // cout << "currL1Bound: " << currL1Bound << " currR1Bound: " << currR1Bound << " currL2Bound: " << currL2Bound << " currR2Bound: " << currR2Bound << endl;
             p.L1Bound=currL1Bound;
             p.R1Bound=currR1Bound;
             p.L2Bound=currL2Bound;

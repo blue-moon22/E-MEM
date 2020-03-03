@@ -108,7 +108,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
     uint64_t offsetR=0,offsetQ=0;
     uint64_t rRef=currRPos+commonData::kmerSize;
     rQue=currQPos+commonData::kmerSize; // one character ahead of current match
-    uint64_t currR=0, currQ=0;
+    uint64_t currR=0, currQ=0, lQtmp=0, rQtmp=0;
     int i=0,j=0,mismatch=0;
     uint64_t matchSize=0;
 
@@ -124,7 +124,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
 
     if (QueryNpos.right-((QueryNpos.left==0x1)?0:QueryNpos.left)+2 < static_cast<uint64_t>(commonData::minMemLen))
         return;
-    
+
     while ((rRef <= totalRBits) && (rQue <= totalQBits) && (rRef <= RefNpos.right) && (rQue <= QueryNpos.right))
     {
         if (!mismatch)
@@ -220,7 +220,10 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
      */
     if ((lRef?lRef!=RefNpos.left:!RefNpos.left) && (rQue?rQue!=QueryNpos.right:!QueryNpos.right)){
         if ((rRef?rRef!=RefNpos.right:!RefNpos.right) && (lQue?lQue!=QueryNpos.left:!QueryNpos.left)) {
-            arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQue, rQue, RefNpos, QueryNpos, QueryFile, RefFile);
+            // cout << "lR: " << (*it).lR << " rR: " << (*it).rR << " lQ: " << (*it).lQ << " rQ: " << (*it).rQ << endl;
+            lQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - rQue) - 1):(QueryNpos.left + (QueryNpos.right - rQue)));
+            rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
+            arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQtmp, rQtmp, QueryFile, RefFile);
         }
     }
 }
@@ -647,7 +650,7 @@ int main (int argc, char *argv[])
             if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
                 processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
                 RefFile.setCurrPos();
-                RefFile.clearMapForNs(); // clear block of Ns from memory
+                // RefFile.clearMapForNs(); // clear block of Ns from memory
             }
             else
                 break;
@@ -665,7 +668,6 @@ int main (int argc, char *argv[])
      */
     arrayTmpFile.closeFiles(NUM_TMP_FILES);
     QueryFile.closeFile();
-    QueryFile.destroy();
 
     /*
      * Populate sequence information in vectors. Use this to get MEM
@@ -677,12 +679,16 @@ int main (int argc, char *argv[])
     // vector<seqData> querySeqInfo;
     refSeqInfo.reserve(RefFile.getNumSequences());
     // querySeqInfo.reserve(QueryFile.getNumSequences());
-    RefFile.generateSeqPos(refSeqInfo);
+    RefFile.setSize(QueryFile.getSize());
+    RefFile.allocBinArray(0);
+    RefFile.clearFileFlag();
+    if(RefFile.readChunks())
+        RefFile.generateSeqPos(refSeqInfo);
     //QueryFile.generateSeqPos(querySeqInfo);
 
     cout << "Getting inverted repeats..." << endl;
     vector<posData> invertedRepeatInfo;
-    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
+    arrayTmpFile.getInvertedRepeats(RefFile, QueryFile, refSeqInfo, invertedRepeatInfo);
 
     cout << "Writing inverted repeats..." << endl;
     arrayTmpFile.writeInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
@@ -698,10 +704,11 @@ int main (int argc, char *argv[])
     }
 
     //arrayTmpFile.removeTmp();
-
+    QueryFile.closeFile();
     RefFile.closeFile();
     OutFile.closeFile();
 
+    QueryFile.destroy();
     RefFile.destroy();
 
     fflush(0);
