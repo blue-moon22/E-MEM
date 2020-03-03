@@ -124,78 +124,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
 
     if (QueryNpos.right-((QueryNpos.left==0x1)?0:QueryNpos.left)+2 < static_cast<uint64_t>(commonData::minMemLen))
         return;
-
-    //match towards left
-    while (lRef && lQue && ((QueryNpos.left==0x1)?true:QueryNpos.left<=lQue) && ((RefNpos.left==0x1)?true:RefNpos.left<=lRef))
-    {
-        if (!mismatch)
-        {
-            offsetR=(lRef)%DATATYPE_WIDTH;
-            i=(lRef)/DATATYPE_WIDTH;
-            offsetQ=(lQue)%DATATYPE_WIDTH;
-            j=(lQue)/DATATYPE_WIDTH;
-            // Get the matchsize from reference or query that is left in the 64 bit
-            if (offsetR > offsetQ)
-                matchSize = offsetQ;
-            else
-                matchSize = offsetR;
-
-            if (!matchSize)
-                matchSize=2;
-
-            if ((QueryNpos.left!=0x1) && (matchSize > lQue-QueryNpos.left))
-                matchSize = lQue-QueryNpos.left;
-
-            if ((RefNpos.left!=0x1) && (matchSize > lRef-RefNpos.left))
-                matchSize = lRef-RefNpos.left;
-
-            if (!matchSize)
-                break;
-
-            /*
-             * There will never be case with offset=0 and i=0 because
-             * i=0 happens only when lRef=0 and in that case we do not
-             * enter this loop.
-             */
-            // Get the 64-bit representation
-            currR = RefFile.binReads[offsetR?i:i-1];
-            if (offsetR)
-                currR >>= DATATYPE_WIDTH-offsetR;
-            currQ = QueryFile.binReads[offsetQ?j:j-1];
-            if (offsetQ)
-                currQ >>= DATATYPE_WIDTH-offsetQ;
-        }
-
-        // if no exact match between the rest of query and ref 64 bit offset then allow for mismatch
-        if((currR & global_mask_right[matchSize/2 - 1]) != (currQ &  global_mask_right[matchSize/2 - 1])) {
-            if (matchSize==2)
-                break;
-
-            mismatch=1;
-            matchSize/=2;
-            if (matchSize%2)
-                matchSize+=1;
-        // if there is an exact match then extend previous lRef and lQue to the left
-        }else {
-            lRef-=matchSize;
-            lQue-=matchSize;
-            if (mismatch) { // if already had a mismatch
-                if (matchSize==2) // and there is no more to extend, break
-                    break;
-                currR >>= matchSize;
-                currQ >>= matchSize;
-            }
-        }
-    } // loop until extension reached to the left
-
-    if (totalRBits-lRef+2 < static_cast<uint64_t>(commonData::minMemLen))
-        return;
-
-    if (totalQBits-lQue+2 < static_cast<uint64_t>(commonData::minMemLen))
-        return;
-
-    //match towards right - same principal as the left
-    mismatch=0;
+    
     while ((rRef <= totalRBits) && (rQue <= totalQBits) && (rRef <= RefNpos.right) && (rQue <= QueryNpos.right))
     {
         if (!mismatch)
