@@ -29,7 +29,6 @@ using namespace std;
 #define DATATYPE_WIDTH          64 	// number of bits
 #define RANDOM_SEQ_SIZE         10
 #define NUM_TMP_FILES           24
-#define MAX_MEMEXVEC_GB         1
 
 class commonData {
   public:
@@ -1374,7 +1373,7 @@ class tmpFilesInfo {
 
             int count=0;
             while (!TmpFiles[i].read((char *) &m, sizeof(MemExt)).eof()) {
-                if (sizeof(MemExtVec) < MAX_MEMEXVEC_GB*1e9) {
+                if (MemExtVec.size() < 1e6) {
                     MemExtVec.emplace_back(m);
                 }else {
                     sort(MemExtVec.begin(), MemExtVec.end(), MemExt());
