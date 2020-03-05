@@ -897,7 +897,6 @@ class tmpFilesInfo {
     fstream *TmpFiles;
     fstream palFile;
     vector <MemExt> MemExtVec;
-    vector<MemExt> MemExtVecNew;
     uint64_t numMemsInFile;
 
     bool checkMEMExt(uint64_t &lr, uint64_t &rr, uint64_t &lq, uint64_t &rq, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile) {
@@ -1346,7 +1345,6 @@ class tmpFilesInfo {
         int32_t offset=0;
         uint64_t Bound, currL1Bound, currR1Bound, currL2Bound, currR2Bound, ext=2, extLengthL, extLengthR, currExtLengthL, currExtLengthR, currBin;
         int binLength, hDL, hDR;
-        vector<MemExt>::iterator last;
         string currHeader;
         posData p;
         char buffer[256];
@@ -1361,7 +1359,9 @@ class tmpFilesInfo {
         //remove(buffer);
 
         openFiles(ios::in|ios::binary, numFiles);
+        cout << "Reading tmp files" << endl;
 
+        uint64_t count = 0;
         for (int32_t i=0;i<numFiles;i++) {
             sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
             if (i == NUM_TMP_FILES) {
@@ -1370,51 +1370,24 @@ class tmpFilesInfo {
                 /* Redirect output to reverse complement file */
                 std::cout.rdbuf(TmpFiles[numFiles + 1].rdbuf());
             }
-
-            int count=0;
             while (!TmpFiles[i].read((char *) &m, sizeof(MemExt)).eof()) {
-                if (MemExtVec.size() < 1e6) {
+                if (count < 1e6) {
                     MemExtVec.emplace_back(m);
-                }else {
-                    sort(MemExtVec.begin(), MemExtVec.end(), MemExt());
-                    last = unique(MemExtVec.begin(), MemExtVec.end(), myUnique);
-                    sort(MemExtVec.begin(), last, sortReverse);
-                    last = unique(MemExtVec.begin(), last, myUniqueRev);
-
-                    for (vector<MemExt>::iterator it = MemExtVec.begin(); it != last; ++it) {
-                        MemExtVecNew.emplace_back(*it);
-                    }
-
-                    if (count) {
-                        sort(MemExtVecNew.begin(), MemExtVecNew.end(), MemExt());
-                        last = unique(MemExtVecNew.begin(), MemExtVecNew.end(), myUnique);
-                        sort(MemExtVecNew.begin(), last, sortReverse);
-                        last = unique(MemExtVecNew.begin(), last, myUniqueRev);
-
-                        for (vector<MemExt>::iterator it = MemExtVecNew.begin(); it != last; ++it) {
-                            MemExtVec.emplace_back(*it);
-                        }
-                        MemExtVecNew.erase(MemExtVecNew.begin(), MemExtVecNew.end());
-                        MemExtVecNew = MemExtVec;
-                    }
-                    MemExtVec.clear();
                     ++count;
+                }else {
+                    sort(MemExtVec.begin(), MemExtVec.end(), sortReverse);
+                    MemExtVec.erase(unique(MemExtVec.begin(), MemExtVec.end(), myUniqueRev), MemExtVec.end());
+                    count = 0;
                 }
             }
             TmpFiles[i].close();
             //remove(buffer);
         }
 
-        if (!MemExtVec.size()) {
-            MemExtVec = MemExtVecNew;
-            MemExtVecNew.clear();
-        }
-
-        sort(MemExtVec.begin(), MemExtVec.end(), MemExt());
-        last = unique(MemExtVec.begin(), MemExtVec.end(), myUnique);
-        sort(MemExtVec.begin(), last, sortReverse);
-        last = unique(MemExtVec.begin(), last, myUniqueRev);
+        sort(MemExtVec.begin(), MemExtVec.end(), sortReverse);
+        vector<MemExt>::iterator last = unique(MemExtVec.begin(), MemExtVec.end(), myUniqueRev);
         vector<MemExt>::iterator lastIt = unique(MemExtVec.begin(), last, myUniqueQue);
+        cout << "Allocate posDataInfo: " << distance(MemExtVec.begin(), lastIt) << endl;
         posDataInfo.reserve(distance(MemExtVec.begin(), lastIt));
 
         for (vector<MemExt>::iterator it=MemExtVec.begin();it!=lastIt;++it) {
