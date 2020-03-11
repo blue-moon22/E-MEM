@@ -97,7 +97,7 @@ void buildRefHash(Knode* &refHash, uint64_t totalBits, seqFileReadInfo &RefFile)
  * Input: name : reference sequence string for output
  *
  */
-void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos, uint64_t &rQue)
+void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos)
 {
     /*
      * lRef and lQue are local variables for left extension of
@@ -106,8 +106,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
      */
     uint64_t lRef=currRPos, lQue=currQPos; // Keeping lRef on currRPos-this makes offset computation simpler
     uint64_t offsetR=0,offsetQ=0;
-    uint64_t rRef=currRPos+commonData::kmerSize;
-    rQue=currQPos+commonData::kmerSize; // one character ahead of current match
+    uint64_t rRef=currRPos+commonData::kmerSize, rQue=currQPos+commonData::kmerSize; // one character ahead of current match
     uint64_t currR=0, currQ=0, lQtmp=0, rQtmp=0;
     int i=0,j=0,mismatch=0;
     uint64_t matchSize=0;
@@ -234,7 +233,7 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
     uint32_t copyBits=0;
     #pragma omp parallel num_threads(commonData::numThreads)
     {
-        uint64_t currKmer=0, j=0, rQue=0;
+        uint64_t currKmer=0, j=0;
         int32_t offset=0;
         uint32_t first=1;
         int kmerWithNs=0;
@@ -293,15 +292,15 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                 continue;
             }
             /* Find the K-mer in the refHash */
-            if (currKmerPos > rQue) {
+            if (currKmerPos > QueryNpos.right) {
                 uint64_t *dataPtr = NULL;
                 if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize / 2 - 1],
                                       dataPtr)) // dataPtr is position of the kmer in reference
                 {
                     // We have a match
                     for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                        helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),
-                                        RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQue);
+                        if (!(dataPtr[n] < RefNpos.right & dataPtr[n] > RefNpos.left))
+                            helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos);
                     }
                 }
             }
@@ -628,7 +627,6 @@ int main (int argc, char *argv[])
 
     cout << "Generating reverse complement..." << endl;
     QueryFile.generateRevComplement();
-    //RefFile.generateRevComplement(0); // This routine also computes size and num sequences
     RefFile.setSize(QueryFile.getSize());
     RefFile.setNumSequences(QueryFile.getNumSequences());
 
@@ -676,19 +674,19 @@ int main (int argc, char *argv[])
      */
     cout << "Creating seqData..." << endl;
     vector<seqData> refSeqInfo;
-    // vector<seqData> querySeqInfo;
-    refSeqInfo.reserve(RefFile.getNumSequences());
-    // querySeqInfo.reserve(QueryFile.getNumSequences());
+    refSeqInfo.reserve(QueryFile.getNumSequences());
     RefFile.setSize(QueryFile.getSize());
+    QueryFile.closeFile();
+    QueryFile.destroy();
+
     RefFile.allocBinArray(0);
     RefFile.clearFileFlag();
     if(RefFile.readChunks())
         RefFile.generateSeqPos(refSeqInfo);
-    //QueryFile.generateSeqPos(querySeqInfo);
 
     cout << "Getting inverted repeats..." << endl;
     vector<posData> invertedRepeatInfo;
-    arrayTmpFile.getInvertedRepeats(RefFile, QueryFile, refSeqInfo, invertedRepeatInfo);
+    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
 
     cout << "Writing inverted repeats..." << endl;
     arrayTmpFile.writeInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
@@ -704,11 +702,9 @@ int main (int argc, char *argv[])
     }
 
     //arrayTmpFile.removeTmp();
-    QueryFile.closeFile();
     RefFile.closeFile();
     OutFile.closeFile();
 
-    QueryFile.destroy();
     RefFile.destroy();
 
     fflush(0);

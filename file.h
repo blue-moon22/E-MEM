@@ -1336,7 +1336,7 @@ class tmpFilesInfo {
         return setBits;
     }
 
-    void getInvertedRepeats(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, vector<seqData> &vecSeqInfo, vector<posData> &posDataInfo) {
+    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo, vector<posData> &posDataInfo) {
         streambuf *coutbuf=std::cout.rdbuf();
         int numFiles=0;
         MemExt m;
@@ -1361,7 +1361,7 @@ class tmpFilesInfo {
         openFiles(ios::in|ios::binary, numFiles);
         cout << "Reading tmp files" << endl;
 
-        uint64_t count = 0;
+        uint32_t count = 0;
         for (int32_t i=0;i<numFiles;i++) {
             sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
             if (i == NUM_TMP_FILES) {
@@ -1377,6 +1377,7 @@ class tmpFilesInfo {
                 }else {
                     sort(MemExtVec.begin(), MemExtVec.end(), sortReverse);
                     MemExtVec.erase(unique(MemExtVec.begin(), MemExtVec.end(), myUniqueRev), MemExtVec.end());
+                    cout << "Current size of MemExtVec: " << MemExtVec.size() << endl;
                     count = 0;
                 }
             }
