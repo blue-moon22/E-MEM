@@ -657,7 +657,6 @@ int main (int argc, char *argv[])
         /*
          * Process MemExt list and write to file
          */
-        //cout << "If MemExtVec, merge to make temp files" << endl;
         arrayTmpFile.mergeMemExtVector();
     }
 
@@ -685,11 +684,7 @@ int main (int argc, char *argv[])
         RefFile.generateSeqPos(refSeqInfo);
 
     cout << "Getting inverted repeats..." << endl;
-    vector<posData> invertedRepeatInfo;
-    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
-
-    cout << "Writing inverted repeats..." << endl;
-    arrayTmpFile.writeInvertedRepeats(RefFile, refSeqInfo, invertedRepeatInfo);
+    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo);
 
     cout << "Writing to outfile..." << endl;
     OutFile.setFile(outFilename);
