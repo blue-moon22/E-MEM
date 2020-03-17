@@ -1401,8 +1401,11 @@ class tmpFilesInfo {
             }
             TmpFiles[i].close();
         }
+        cout << "MemExtVec complete" << endl;
 
         sort(MemExtVec.begin(), MemExtVec.end(), myUniqueQue);
+
+        cout << "MemExtVec sorted" << endl;
 
         for (vector<MemExt>::iterator it=MemExtVec.begin();it!=MemExtVec.end();++it) {
 
