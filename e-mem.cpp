@@ -648,7 +648,7 @@ int main (int argc, char *argv[])
             if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
                 processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
                 RefFile.setCurrPos();
-                // RefFile.clearMapForNs(); // clear block of Ns from memory
+                RefFile.clearMapForNs(); // clear block of Ns from memory
             }
             else
                 break;
