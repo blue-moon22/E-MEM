@@ -324,7 +324,6 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
     Knode *refHash;
 
     numberOfKmers = ceil((RefFile.totalBases-commonData::kmerSize/2+1)/((commonData::minMemLen/2-commonData::kmerSize/2 + 1)) + 1);
-    //cout << "number of kmers: " << numberOfKmers << endl;
 
     /* Set the size of the hash table to the numberofKmers. */
     for (n=0; n<450; ++n)
@@ -335,7 +334,6 @@ void processReference(seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpF
             break;
         }
     }
-    // cout << "Hashtable size: " << hashTableSize[hashTableSizeIndex] << endl;
 
     Knode::currHashTabSize = hashTableSize[hashTableSizeIndex];  //Store the size of the hash table.
     if (hashTableSizeIndex)
@@ -634,9 +632,7 @@ int main (int argc, char *argv[])
     QueryFile.setReverseFile();
 
     arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(0), QueryFile.getNumSequences());
-    //cout << "Size: " << QueryFile.getSize() << endl;
     RefFile.allocBinArray(1);
-    //cout << "Size: " << RefFile.getSize() << endl;
     RefFile.clearFileFlag();
 
     QueryFile.clearFileFlag();
@@ -644,7 +640,7 @@ int main (int argc, char *argv[])
     if (QueryFile.readChunks())
     {
         for (i=0; i<commonData::d; i++) {
-            cout << "Encoding Ref sequences..." << endl;
+            cout << "Encoding chunk " << i+1 << " of Ref sequences..." << endl;
             if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
                 processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
                 RefFile.setCurrPos();
@@ -696,7 +692,7 @@ int main (int argc, char *argv[])
         OutFile.removeSeq(refSeqInfo, filenames);
     }
 
-    //arrayTmpFile.removeTmp();
+    arrayTmpFile.removeTmp();
     RefFile.closeFile();
     OutFile.closeFile();
 

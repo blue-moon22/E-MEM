@@ -488,25 +488,6 @@ class seqFileReadInfo {
                       processInput(line, sz, blockNCount);
                   }
               }
-
-              if( !strName.empty() ){
-                  if ((totalBases%32)!=0)
-                  {
-                      uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
-                      binReads[binReadsLocation] <<= (DATATYPE_WIDTH-offset);
-                      binReadsLocation++;
-                      binReads[binReadsLocation]=0;
-                  }
-                  if (blockNCount){
-                      blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
-                      blockNCount=0;
-                  }
-                  if (!strTmp.size())
-                      strName.clear();
-                  if (numSeqFiles == 1)
-                      return true;
-              }
-
               if (numSeqFiles == 2) {
                   while(getline( file2, line ).good()){
                       if(line[0] == '>' || (totalBases == sz)){
@@ -539,25 +520,23 @@ class seqFileReadInfo {
                       }
                   }
               }
-
-              if( !strName.empty() ){
-                  if ((totalBases%32)!=0)
-                  {
-                      uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
-                      binReads[binReadsLocation] <<= (DATATYPE_WIDTH-offset);
-                      binReadsLocation++;
-                      binReads[binReadsLocation]=0;
-                  }
-                  if (blockNCount){
-                      blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
-                      blockNCount=0;
-                  }
-                  if (!strTmp.size())
-                      strName.clear();
-                  return true;
-              }
           }
-
+          if( !strName.empty() ){
+              if ((totalBases%32)!=0)
+              {
+                  uint64_t offset = CHARS2BITS(totalBases)%DATATYPE_WIDTH;
+                  binReads[binReadsLocation] <<= (DATATYPE_WIDTH-offset);
+                  binReadsLocation++;
+                  binReads[binReadsLocation]=0;
+              }
+              if (blockNCount){
+                  blockOfNs.push_back(mapObject(CHARS2BITS(blockNCount-1), CHARS2BITS(totalBases-1)));
+                  blockNCount=0;
+              }
+              if (!strTmp.size())
+                  strName.clear();
+              return true;
+          }
           return false;
       }
 
@@ -639,16 +618,6 @@ class seqFileReadInfo {
                       i+=line.length();
                   }
               }
-              if( !strName.empty() ) {
-                  i+=line.length();
-                  s.start=CHARS2BITS(j);
-                  s.end=CHARS2BITS(i-1);
-                  s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
-                  s.seq += "_1";
-                  vecSeqInfo.push_back(s);
-                  s.seq.clear();
-                  strName.clear();
-              }
               if (numSeqFiles == 2){
                   while(getline(file2, line).good() ){
                       if(line[0] == '>'){
@@ -669,17 +638,20 @@ class seqFileReadInfo {
                           i+=line.length();
                       }
                   }
-                  if( !strName.empty() ) {
-                      i+=line.length();
-                      s.start=CHARS2BITS(j);
-                      s.end=CHARS2BITS(i-1);
-                      s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
-                      s.seq += "_2";
-                      vecSeqInfo.push_back(s);
-                      s.seq.clear();
-                      strName.clear();
-                  }
               }
+          }
+          if( !strName.empty() ) {
+              i+=line.length();
+              s.start=CHARS2BITS(j);
+              s.end=CHARS2BITS(i-1);
+              s.seq.assign(strtok(const_cast<char *>(strName.c_str())," \t\n"));
+              if (numSeqFiles == 1)
+                  s.seq += "_1";
+              if (numSeqFiles == 2)
+                  s.seq += "_2";
+              vecSeqInfo.push_back(s);
+              s.seq.clear();
+              strName.clear();
           }
       }
 
@@ -700,7 +672,6 @@ class seqFileReadInfo {
           clearFileFlag();
 
           if (numSeqFiles >= 1){
-
               while(getline( file1, line ).good()){
                   size += (line.length()+1);
                   if(line[0] == '>'){
@@ -728,9 +699,7 @@ class seqFileReadInfo {
                   content.clear();
                   strName.clear();
               }
-
               if (numSeqFiles == 2){
-
                   while(getline( file2, line ).good()){
                       size += (line.length()+1);
                       if(line[0] == '>'){
@@ -748,16 +717,16 @@ class seqFileReadInfo {
                           content += line;
                       }
                   }
-              }
-              // Catches the last sequence line
-              if( !strName.empty() ) {
-                  size += (line.length()+1);
-                  content += "\n";
-                  content += line;
-                  numSequences++;
-                  writeReverseComplementString(strName, content, revFile);
-                  content.clear();
-                  strName.clear();
+                  // Catches the last sequence line
+                  if( !strName.empty() ) {
+                      size += (line.length()+1);
+                      content += "\n";
+                      content += line;
+                      numSequences++;
+                      writeReverseComplementString(strName, content, revFile);
+                      content.clear();
+                      strName.clear();
+                  }
               }
           }
           revFile.close();
@@ -1399,11 +1368,8 @@ class tmpFilesInfo {
             }
             TmpFiles[i].close();
         }
-        cout << "MemExtVec complete" << endl;
 
         sort(MemExtVec.begin(), MemExtVec.end(), myUniqueQue);
-
-        cout << "MemExtVec sorted" << endl;
 
         for (vector<MemExt>::iterator it=MemExtVec.begin();it!=MemExtVec.end();++it) {
 
@@ -1511,7 +1477,6 @@ class tmpFilesInfo {
                 duplQ = (*it).lQ;
                 duprR = (*it).rR;
                 duprQ = (*it).rQ;
-
                 currHeader = ">InvertedRepeat";
                 s.start=duprQ;
                 s.end=duplQ;
