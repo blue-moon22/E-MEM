@@ -299,7 +299,7 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                 {
                     // We have a match
                     for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                        if (!(dataPtr[n] < RefNpos.right & dataPtr[n] > RefNpos.left))
+                        if (!((dataPtr[n] < RefNpos.right) && (dataPtr[n] > RefNpos.left)))
                             helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos);
                     }
                 }

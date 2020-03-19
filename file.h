@@ -29,6 +29,7 @@ using namespace std;
 #define DATATYPE_WIDTH          64 	// number of bits
 #define RANDOM_SEQ_SIZE         10
 #define NUM_TMP_FILES           24
+#define HAMMING_DISTANCE_LIM    1
 
 class commonData {
   public:
@@ -453,7 +454,6 @@ class seqFileReadInfo {
           uint64_t blockNCount=0;
           int minSize = commonData::minMemLen/2-1;
           uint64_t sz=size+minSize;
-          int it = 0;
           /* Process anything remaining from the last iteration */
           processTmpString(sz, blockNCount);
 
@@ -786,7 +786,7 @@ public:
 
     void removeSeq(vector<seqData> &vecSeqInfo, vector<string> &filenames) {
         seqData s;
-        uint64_t i = 0, j = 0, lineNum = 0;
+        uint64_t lineNum = 0;
         string line;
         char buffer[256];
         memset(buffer,0,256);
@@ -1359,14 +1359,12 @@ class tmpFilesInfo {
     }
 
     void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo) {
-        streambuf *coutbuf=std::cout.rdbuf();
         int numFiles=0;
         vector<MemExt> MemExtVec;
         MemExt m;
         vector<uint64_t> l1Bins, l2Bins, r1Bins, r2Bins;
         mapObject QueryNpos, RefNpos1, RefNpos2;
-        int32_t offset=0;
-        uint64_t Bound, currL1Bound, currR1Bound, currL2Bound, currR2Bound, ext=2, extLengthL, extLengthR, currExtLengthL, currExtLengthR, currBin;
+        uint64_t Bound, currL1Bound, currR1Bound, currL2Bound, currR2Bound, ext=2, extLengthL, extLengthR, currExtLengthL, currExtLengthR;
         uint64_t duplR = 0, duprR = 0, duplQ = 0, duprQ = 0;
         int binLength, hDL, hDR;
         seqData s;
@@ -1440,7 +1438,7 @@ class tmpFilesInfo {
                             hDL += hammingDistance(l1Bins[bin], l2Bins[bin]);
                     }
 
-                    if ((!hDL || hDL == 1) || (!hDR || hDR == 1)) {
+                    if (hDL <= HAMMING_DISTANCE_LIM) {
                         if (duplR - RefNpos1.left >= (*it).lR - RefNpos2.left) {
                             currL1Bound = RefNpos1.left;
                             currR1Bound = duprR + ext;
@@ -1469,7 +1467,7 @@ class tmpFilesInfo {
                             hDR += hammingDistance(r1Bins[bin], r2Bins[bin]);
                     }
 
-                    if ((!hDL || hDL == 1) || (!hDR || hDR == 1)) {
+                    if (hDR <= HAMMING_DISTANCE_LIM) {
                         if (RefNpos1.right - duprR >= RefNpos2.right - (*it).rR) {
                             currL2Bound = duprR + ext;
                             currR2Bound = RefNpos1.right + ext;
