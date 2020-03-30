@@ -77,6 +77,7 @@ public:
     uint64_t R1Bound;
     uint64_t L2Bound;
     uint64_t R2Bound;
+    uint64_t palLength;
     std::string seq;
 
     posData() {}
@@ -1323,7 +1324,7 @@ class tmpFilesInfo {
             currBin >>= ((DATATYPE_WIDTH - 2) - offset);
             convertToNucl(currBin, sequence);
         }
-        palFile << posDataInfo.seq << "\n";
+        palFile << posDataInfo.seq << "_LCoord_" << (((posDataInfo.R1Bound - posDataInfo.L1Bound) - posDataInfo.palLength) + 2 / 2) << "_RCoord_" << ((posDataInfo.R1Bound - posDataInfo.L1Bound) / 2) << "\n";
         palFile << sequence << "\n";
     }
 
@@ -1468,6 +1469,7 @@ class tmpFilesInfo {
                     p.R1Bound=currR1Bound;
                     p.L2Bound=currL2Bound;
                     p.R2Bound=currR2Bound;
+                    p.palLength=((*it).rR - (*it).lR + ext);
                     p.seq=currHeader;
                     writeInvertedRepeats(RefFile, p);
                     flag = 1;
