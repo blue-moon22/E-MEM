@@ -739,7 +739,7 @@ class outFileReadInfo {
 
 public:
 
-    void setFile(string &filename)
+    void setFile(string filename)
     {
         outFile.open(filename, ios::out);
         if(!outFile.is_open()) {
@@ -1000,12 +1000,12 @@ class tmpFilesInfo {
         }
     }
 
-    void setIRFile() {
+    void setIRFile(string &filename) {
         char buffer[256];
         memset(buffer,0,256);
         sprintf(buffer, "%s/IR", commonData::nucmer_path);
 
-        palFile.open(buffer, ios::out);
+        palFile.open(filename, ios::out);
         if(!palFile.is_open()) {
             cout << "ERROR: unable to open "<< buffer << " file" << endl;
             exit( EXIT_FAILURE );
@@ -1304,44 +1304,32 @@ class tmpFilesInfo {
         return setBits;
     }
 
-    void writeInvertedRepeats(seqFileReadInfo &RefFile, posData &posDataInfo) {
+    void writeInvertedRepeats(seqFileReadInfo &RefFile, mapObject &RefNpos, string &currHeader) {
 
         uint64_t currBin;
         uint32_t offset;
 
         string sequence;
-        for (uint64_t pos = ((posDataInfo.L1Bound) / 2); pos != ((posDataInfo.R1Bound) / 2); ++pos) {
+        for (uint64_t pos = ((RefNpos.left) / 2); pos != ((RefNpos.right) / 2) + 2; ++pos) {
             currBin = RefFile.binReads[(pos * 2) / DATATYPE_WIDTH];
             offset = (pos * 2) % DATATYPE_WIDTH;
             currBin &= global_mask_right[(DATATYPE_WIDTH - offset) / 2 - 1];
             currBin >>= ((DATATYPE_WIDTH - 2) - offset);
             convertToNucl(currBin, sequence);
         }
-        for (uint64_t pos = ((posDataInfo.L2Bound) / 2); pos != ((posDataInfo.R2Bound) / 2); ++pos) {
-            currBin = RefFile.binReads[(pos * 2) / DATATYPE_WIDTH];
-            offset = (pos * 2) % DATATYPE_WIDTH;
-            currBin &= global_mask_right[(DATATYPE_WIDTH - offset) / 2 - 1];
-            currBin >>= ((DATATYPE_WIDTH - 2) - offset);
-            convertToNucl(currBin, sequence);
-        }
-        palFile << posDataInfo.seq << "_LCoord_" << ((posDataInfo.R1Bound - posDataInfo.L1Bound) / 2 - (posDataInfo.palLength / 2) + 1) << "_RCoord_" << ((posDataInfo.R1Bound - posDataInfo.L1Bound) / 2) << "\n";
+        palFile << currHeader << "\n";
         palFile << sequence << "\n";
     }
 
-    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo) {
+    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo, string filename) {
         int numFiles=0;
         vector<MemExt> MemExtVec;
         MemExt m;
-        vector<uint64_t> l1Bins, l2Bins, r1Bins, r2Bins;
-        mapObject QueryNpos, RefNpos1, RefNpos2;
-        uint64_t Bound, currL1Bound, currR1Bound, currL2Bound, currR2Bound, ext=2, extLengthL, extLengthR, currExtLengthL, currExtLengthR;
-        uint64_t duplR = 0, duprR = 0, duplQ = 0, duprQ = 0;
-        int binLength, hDL, hDR;
+        mapObject RefNpos;
         seqData s;
         vector<seqData>::iterator seqit;
         string currHeader;
-        posData p;
-        int flag = 1;
+        uint64_t duprR, duplR = 0;
         char buffer[256];
         memset(buffer,0,256);
 
@@ -1354,7 +1342,7 @@ class tmpFilesInfo {
         //remove(buffer);
 
         openFiles(ios::in|ios::binary, numFiles);
-        setIRFile();
+        setIRFile(filename);
 
         for (int32_t i=0;i<numFiles;i++) {
             sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
@@ -1370,121 +1358,19 @@ class tmpFilesInfo {
             TmpFiles[i].close();
         }
 
-        sort(MemExtVec.begin(), MemExtVec.end(), myUniqueQue);
+        sort(MemExtVec.begin(), MemExtVec.end(), compare_reference);
 
         for (vector<MemExt>::iterator it=MemExtVec.begin();it!=MemExtVec.end();++it) {
-
-            if (flag) {
-                RefFile.getKmerLeftnRightBoundForNs((*it).lR, RefNpos1);
-                currExtLengthL = (*it).lR - RefNpos1.left;
-                currExtLengthR = RefNpos1.right - (*it).rR;
-                currL1Bound = RefNpos1.left;
-                currR1Bound = (*it).rR + ext;
-                currL2Bound = (*it).rR + ext;
-                currR2Bound = RefNpos1.right + ext;
-            }
-
-            if (duprQ == (*it).rQ && duplQ == (*it).lQ) {
-                RefFile.getKmerLeftnRightBoundForNs(duplR, RefNpos1);
-                RefFile.getKmerLeftnRightBoundForNs((*it).lR, RefNpos2);
-                // Left extension
-                if (max(duplR - RefNpos1.left, (*it).lR - RefNpos2.left) > currExtLengthL) {
-                    currExtLengthL = max(duplR - RefNpos1.left, (*it).lR - RefNpos2.left);
-
-                    extLengthL = min(duplR - RefNpos1.left, (*it).lR - RefNpos2.left);
-                    binLength = min((duplR - RefNpos1.left) / DATATYPE_WIDTH + 1,
-                                    ((*it).lR - RefNpos2.left) / DATATYPE_WIDTH + 1);
-                    Bound = duplR - extLengthL;
-                    extBin(RefFile, l1Bins, binLength, extLengthL, Bound);
-                    Bound = (*it).lR - extLengthL;
-                    extBin(RefFile, l2Bins, binLength, extLengthL, Bound);
-
-                    hDL = 0;
-                    for (int bin = 0; bin != binLength; ++bin) {
-                        if (l1Bins[bin] != l2Bins[bin])
-                            hDL += hammingDistance(l1Bins[bin], l2Bins[bin]);
-                    }
-
-                    if (hDL <= HAMMING_DISTANCE_LIM) {
-                        if (duplR - RefNpos1.left >= (*it).lR - RefNpos2.left) {
-                            currL1Bound = RefNpos1.left;
-                            currR1Bound = duprR + ext;
-                        } else {
-                            currL1Bound = RefNpos2.left;
-                            currR1Bound = (*it).rR + ext;
-                        }
-                    }
-                }
-
-                // Right extension
-                if (max(RefNpos1.right - duprR, RefNpos2.right - (*it).rR) > currExtLengthR) {
-                    currExtLengthR = max(RefNpos1.right - duprR, RefNpos2.right - (*it).rR);
-
-                    extLengthR = min(RefNpos1.right - duprR, RefNpos2.right - (*it).rR);
-                    binLength = min((RefNpos1.right - duprR) / (DATATYPE_WIDTH + 1) + 1,
-                                    (RefNpos2.right - (*it).rR) / (DATATYPE_WIDTH + 1) + 1);
-                    Bound = duprR + ext;
-                    extBin(RefFile, r1Bins, binLength, extLengthR, Bound);
-                    Bound = (*it).rR + ext;
-                    extBin(RefFile, r2Bins, binLength, extLengthR, Bound);
-
-                    hDR = 0;
-                    for (int bin = 0; bin != binLength; ++bin) {
-                        if (r1Bins[bin] != r2Bins[bin])
-                            hDR += hammingDistance(r1Bins[bin], r2Bins[bin]);
-                    }
-
-                    if (hDR <= HAMMING_DISTANCE_LIM) {
-                        if (RefNpos1.right - duprR >= RefNpos2.right - (*it).rR) {
-                            currL2Bound = duprR + ext;
-                            currR2Bound = RefNpos1.right + ext;
-                        } else {
-                            currL2Bound = (*it).rR + ext;
-                            currR2Bound = RefNpos2.right + ext;
-                        }
-                    }
-                }
-
-                if (flag) {
-                    s.start=duprR;
-                    s.end=duplR;
-                    seqit = lower_bound(vecSeqInfo.begin(), vecSeqInfo.end(), s, seqData());
-                    currHeader += "_from_";
-                    currHeader += (*seqit).seq;
-                    (*seqit).keep = 0;
-                }
-
+            if (!((*it).rR == duprR && (*it).lR == duplR)) {
                 s.start=(*it).rR;
                 s.end=(*it).lR;
                 seqit = lower_bound(vecSeqInfo.begin(), vecSeqInfo.end(), s, seqData());
-                currHeader += "_from_";
-                currHeader += (*seqit).seq;
+                RefFile.getKmerLeftnRightBoundForNs((*it).lR, RefNpos);
+                currHeader = ">InvertedRepeat_in_" + (*seqit).seq + "_LCoord_" + to_string((((*it).lR - (RefNpos.left==1?RefNpos.left=0:RefNpos.left)) + 2)/2) + "_RCoord_" + to_string(((*it).rR - (RefNpos.left==1?RefNpos.left=0:RefNpos.left) + 2)/2);
                 (*seqit).keep = 0;
-
-                flag = 0;
-            } else {
-
-                if (!flag) {
-                    p.L1Bound=currL1Bound;
-                    p.R1Bound=currR1Bound;
-                    p.L2Bound=currL2Bound;
-                    p.R2Bound=currR2Bound;
-                    p.palLength=((*it).rR - (*it).lR + ext);
-                    p.seq=currHeader;
-                    writeInvertedRepeats(RefFile, p);
-                    flag = 1;
-                }
-
-                duplR = (*it).lR;
-                duplQ = (*it).lQ;
+                writeInvertedRepeats(RefFile, RefNpos, currHeader);
                 duprR = (*it).rR;
-                duprQ = (*it).rQ;
-                currHeader = ">InvertedRepeat";
-                s.start=duprQ;
-                s.end=duplQ;
-                seqit = lower_bound(vecSeqInfo.begin(), vecSeqInfo.end(), s, seqData());
-                currHeader += "_of_";
-                currHeader += (*seqit).seq;
+                duplR = (*it).lR;
             }
         }
         closeIRFile();

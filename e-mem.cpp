@@ -432,7 +432,7 @@ void print_help_msg()
     cout << "-f1\t<filename>\t" << "fasta file with forward paired-end reads" << endl;
     cout << "-f2\t<filename>\t" << "fasta file with reverse paired-end reads" << endl;
     cout << "-fu\t<filename>\t" << "fasta file with unpaired reads" << endl;
-    cout << "-o\t<filename>\t" << "output file" << endl;
+    cout << "-o\t<filename prefix>\t" << "output prefix" << endl;
     cout << "-l\t" << "set the minimum length of a match. The default length" << endl;
     cout << "  \tis 50" << endl;
     cout << "-c\t" << "report the query-position of a reverse complement match" << endl;
@@ -451,7 +451,7 @@ int main (int argc, char *argv[])
     uint32_t options=0;
     seqFileReadInfo QueryFile, RefFile;
     outFileReadInfo OutFile;
-    string fasta1, fasta2, fastaU, outFilename;
+    string fasta1, fasta2, fastaU, outPrefix;
 
     // Check Arguments
     if (argc==1 || argc==2){
@@ -499,11 +499,11 @@ int main (int argc, char *argv[])
             n += 2;
         } else if(boost::equals(argv[n], "-o")){
             if (IS_OUT_FILE_DEF(options)) {
-                cout << "ERROR: output file argument passed multiple times!" << endl;
+                cout << "ERROR: output prefix argument passed multiple times!" << endl;
                 exit(EXIT_FAILURE);
             }
             SET_OUT_FILE(options);
-            outFilename = argv[n+1];
+            outPrefix = argv[n+1];
             n+=2;
         }else if(boost::equals(argv[n],"-l")){
             if (IS_LENGTH_DEF(options)) {
@@ -681,11 +681,11 @@ int main (int argc, char *argv[])
     if(RefFile.readChunks())
         RefFile.generateSeqPos(refSeqInfo);
 
-    cout << "Getting inverted repeats..." << endl;
-    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo);
+    cout << "Writing reads with inverted repeats..." << endl;
+    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo, outPrefix + "_ITR.fasta");
 
-    cout << "Writing to outfile..." << endl;
-    OutFile.setFile(outFilename);
+    cout << "Writing other reads..." << endl;
+    OutFile.setFile(outPrefix + "_no_ITR.fasta");
     if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
         vector<string> filenames = {fasta1, fasta2};
         OutFile.removeSeq(refSeqInfo, filenames);
