@@ -97,7 +97,7 @@ void buildRefHash(Knode* &refHash, uint64_t totalBits, seqFileReadInfo &RefFile)
  * Input: name : reference sequence string for output
  *
  */
-void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos)
+void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos, uint64_t &rQMEM)
 {
     /*
      * lRef and lQue are local variables for left extension of
@@ -222,6 +222,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
             // cout << "lR: " << (*it).lR << " rR: " << (*it).rR << " lQ: " << (*it).lQ << " rQ: " << (*it).rQ << endl;
             lQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - rQue) - 1):(QueryNpos.left + (QueryNpos.right - rQue)));
             rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
+            rQMEM = QueryNpos.right;
             arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQtmp, rQtmp, QueryFile, RefFile);
         }
     }
@@ -236,6 +237,7 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
         uint64_t currKmer=0, j=0;
         int32_t offset=0;
         uint32_t first=1;
+        uint64_t rQMEM=0;
         int kmerWithNs=0;
         mapObject QueryNpos, RefNpos;
         vector<SeqPos> SeqPosVec;
@@ -292,7 +294,7 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                 continue;
             }
             /* Find the K-mer in the refHash */
-            if (currKmerPos > QueryNpos.right) {
+            if (currKmerPos > rQMEM) {
                 uint64_t *dataPtr = NULL;
                 if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize / 2 - 1],
                                       dataPtr)) // dataPtr is position of the kmer in reference
@@ -300,7 +302,7 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                     // We have a match
                     for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
                         if (!((dataPtr[n] < RefNpos.right) && (dataPtr[n] > RefNpos.left)))
-                            helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos);
+                            helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM);
                     }
                 }
             }

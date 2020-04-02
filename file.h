@@ -1324,7 +1324,7 @@ class tmpFilesInfo {
             currBin >>= ((DATATYPE_WIDTH - 2) - offset);
             convertToNucl(currBin, sequence);
         }
-        palFile << posDataInfo.seq << "_LCoord_" << (((posDataInfo.R1Bound - posDataInfo.L1Bound) - posDataInfo.palLength) + 2 / 2) << "_RCoord_" << ((posDataInfo.R1Bound - posDataInfo.L1Bound) / 2) << "\n";
+        palFile << posDataInfo.seq << "_LCoord_" << ((posDataInfo.R1Bound - posDataInfo.L1Bound) / 2 - (posDataInfo.palLength / 2) + 1) << "_RCoord_" << ((posDataInfo.R1Bound - posDataInfo.L1Bound) / 2) << "\n";
         palFile << sequence << "\n";
     }
 
