@@ -739,34 +739,28 @@ class outFileReadInfo {
 
 public:
 
-    void setFile(string filename)
-    {
-        outFile.open(filename, ios::out);
-        if(!outFile.is_open()) {
-            cout << "ERROR: unable to open " << filename << " file" << endl;
-            exit( EXIT_FAILURE );
-        }
-    }
-
-
     void writeString(string &content, fstream &file)
     {
         file << content << "\n";
     }
 
-    void removeSeq(vector<seqData> &vecSeqInfo, vector<string> &filenames) {
+    void writeFiles(vector<seqData> &vecSeqInfo, vector<string> &filenames, string nonITRFilename, string ITRFilename) {
         seqData s;
         uint64_t lineNum = 0;
         string line;
-        char buffer[256];
-        memset(buffer,0,256);
-        sprintf(buffer, "%s/IR", commonData::nucmer_path);
-        fstream palFile;
-        palFile.open(buffer, ios::in);
 
-        /* Write inverted repeats */
-        while (getline(palFile, line).good()) {
-            writeString(line, outFile);
+        fstream palFile;
+        palFile.open(ITRFilename, ios::out);
+        if(!palFile.is_open()) {
+            cout << "ERROR: unable to open " << ITRFilename << " file" << endl;
+            exit( EXIT_FAILURE );
+        }
+
+        fstream outFile;
+        outFile.open(nonITRFilename, ios::out);
+        if(!outFile.is_open()) {
+            cout << "ERROR: unable to open " << nonITRFilename << " file" << endl;
+            exit( EXIT_FAILURE );
         }
 
         if (filenames.size() >= 1) {
@@ -778,10 +772,14 @@ public:
                         line = strtok(const_cast<char *>(line.c_str()), " \t\n");
                         line += "_1";
                         writeString(line, outFile);
+                    } else {
+                        writeString(vecSeqInfo[lineNum].seq, palFile);
                     }
                 } else {
                     if (vecSeqInfo[lineNum].keep)
                         writeString(line, outFile);
+                    else
+                        writeString(line, palFile);
                     ++lineNum;
                 }
             }
@@ -795,19 +793,21 @@ public:
                             line = strtok(const_cast<char *>(line.c_str()), " \t\n");
                             line += "_2";
                             writeString(line, outFile);
+                        } else {
+                            writeString(vecSeqInfo[lineNum].seq, palFile);
                         }
                     } else {
-                        if (vecSeqInfo[lineNum].keep)
-                            writeString(line, outFile);
-                        ++lineNum;
+                      if (vecSeqInfo[lineNum].keep)
+                          writeString(line, outFile);
+                      else
+                          writeString(line, palFile);
+                      ++lineNum;
                     }
                 }
                 file2.close();
             }
         }
-    }
-
-    void closeFile() {
+        palFile.close();
         outFile.close();
     }
 };
@@ -998,22 +998,6 @@ class tmpFilesInfo {
         for (int32_t i=0;i<numFiles;i++){
            TmpFiles[i].close();
         }
-    }
-
-    void setIRFile(string &filename) {
-        char buffer[256];
-        memset(buffer,0,256);
-        sprintf(buffer, "%s/IR", commonData::nucmer_path);
-
-        palFile.open(filename, ios::out);
-        if(!palFile.is_open()) {
-            cout << "ERROR: unable to open "<< buffer << " file" << endl;
-            exit( EXIT_FAILURE );
-        }
-    }
-
-    void closeIRFile() {
-        palFile.close();
     }
 
     fstream& getMapFile(int fIndex) {
@@ -1321,7 +1305,7 @@ class tmpFilesInfo {
         palFile << sequence << "\n";
     }
 
-    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo, string filename) {
+    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo) {
         int numFiles=0;
         vector<MemExt> MemExtVec;
         MemExt m;
@@ -1342,7 +1326,6 @@ class tmpFilesInfo {
         //remove(buffer);
 
         openFiles(ios::in|ios::binary, numFiles);
-        setIRFile(filename);
 
         for (int32_t i=0;i<numFiles;i++) {
             sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
@@ -1368,12 +1351,11 @@ class tmpFilesInfo {
                 RefFile.getKmerLeftnRightBoundForNs((*it).lR, RefNpos);
                 currHeader = ">InvertedRepeat_in_" + (*seqit).seq + "_LCoord_" + to_string((((*it).lR - (RefNpos.left==1?RefNpos.left=0:RefNpos.left)) + 2)/2) + "_RCoord_" + to_string(((*it).rR - (RefNpos.left==1?RefNpos.left=0:RefNpos.left) + 2)/2);
                 (*seqit).keep = 0;
-                writeInvertedRepeats(RefFile, RefNpos, currHeader);
+                (*seqit).seq = currHeader;
                 duprR = (*it).rR;
                 duplR = (*it).lR;
             }
         }
-        closeIRFile();
     }
 
     void removeTmp() {

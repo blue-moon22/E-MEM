@@ -450,7 +450,7 @@ int main (int argc, char *argv[])
     int32_t i=0, n=1;
     uint32_t options=0;
     seqFileReadInfo QueryFile, RefFile;
-    outFileReadInfo OutFile;
+    outFileReadInfo OutFiles;
     string fasta1, fasta2, fastaU, outPrefix;
 
     // Check Arguments
@@ -681,22 +681,20 @@ int main (int argc, char *argv[])
     if(RefFile.readChunks())
         RefFile.generateSeqPos(refSeqInfo);
 
-    cout << "Writing reads with inverted repeats..." << endl;
-    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo, outPrefix + "_ITR.fasta");
+    cout << "Getting inverted repeats..." << endl;
+    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo);
 
-    cout << "Writing other reads..." << endl;
-    OutFile.setFile(outPrefix + "_no_ITR.fasta");
+    cout << "Writing files..." << endl;
     if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
         vector<string> filenames = {fasta1, fasta2};
-        OutFile.removeSeq(refSeqInfo, filenames);
+        OutFiles.writeFiles(refSeqInfo, filenames, outPrefix + "_no_ITR.fasta", outPrefix + "_ITR.fasta");
     } else if (IS_FASTAU_DEF(options)) {
         vector<string> filenames = {fastaU};
-        OutFile.removeSeq(refSeqInfo, filenames);
+        OutFiles.writeFiles(refSeqInfo, filenames, outPrefix + "_no_ITR.fasta", outPrefix + "_ITR.fasta");
     }
 
     arrayTmpFile.removeTmp();
     RefFile.closeFile();
-    OutFile.closeFile();
 
     RefFile.destroy();
 
