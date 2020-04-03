@@ -868,7 +868,6 @@ class tmpFilesInfo {
     fstream palFile;
     vector <MemExt> MemExtVec;
     uint64_t numMemsInFile;
-    uint64_t numberOfMems = 0;
 
     bool checkMEMExt(uint64_t &lr, uint64_t &rr, uint64_t &lq, uint64_t &rq, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile) {
       if ((!lq && QueryFile.getCurrPos()) || rq == CHARS2BITS(QueryFile.totalBases-1)) {
@@ -1010,24 +1009,11 @@ class tmpFilesInfo {
        uint64_t currPosQ = CHARS2BITS(QueryFile.getCurrPos());
        uint64_t currPosR = CHARS2BITS(RefFile.getCurrPos());
        if (rRef-lRef+2 >= static_cast<uint64_t>(commonData::minMemLen)) {
-           if (!(commonData::d==1 && commonData::numThreads==1) && checkMEMExt(lRef, rRef, lQue, rQue, QueryFile, RefFile)) {
-               #pragma omp critical(writeVector)
-               writeToVector(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef);
-           }else {
-               #pragma omp critical(writeFile)
-               writeToFile(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef);
-           }
+           #pragma omp critical(writeFile)
+           writeToFile(currPosQ+lQue, currPosQ+rQue, currPosR+lRef,  currPosR+rRef);
            return true;
        }else
            return false;
-    }
-
-    void addToNumberOfMems(uint64_t count){
-        numberOfMems += count;
-    }
-
-    uint64_t getNumberOfMems() {
-        return numberOfMems;
     }
 
     void printQueryHeader(vector<seqData>::iterator &itQ)
@@ -1314,7 +1300,7 @@ class tmpFilesInfo {
         palFile << sequence << "\n";
     }
 
-    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo) {
+    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo, int32_t j) {
         int numFiles=0;
         vector<MemExt> MemExtVec;
         MemExt m;
@@ -1328,17 +1314,14 @@ class tmpFilesInfo {
 
         numFiles=NUM_TMP_FILES;
 
-        //sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles);
-        //remove(buffer);
+        sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles);
+        remove(buffer);
 
-        //sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles+1);
-        //remove(buffer);
-        cout << "Allocating MEM vector..." << endl;
-        MemExtVec.reserve(getNumberOfMems());
+        sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles+1);
+        remove(buffer);
 
         openFiles(ios::in|ios::binary, numFiles);
 
-        cout << "Reading MEMs..." << endl;
         for (int32_t i=0;i<numFiles;i++) {
             sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
             if (i == NUM_TMP_FILES) {
@@ -1351,23 +1334,21 @@ class tmpFilesInfo {
                 MemExtVec.emplace_back(m);
             }
             TmpFiles[i].close();
+            remove(buffer);
         }
 
-        cout << "Sorting MEMs..." << endl;
-        sort(MemExtVec.begin(), MemExtVec.end(), compare_reference);
-
         for (vector<MemExt>::iterator it=MemExtVec.begin();it!=MemExtVec.end();++it) {
-            if (!((*it).rR == duprR && (*it).lR == duplR)) {
-                s.start=(*it).rR;
-                s.end=(*it).lR;
-                seqit = lower_bound(vecSeqInfo.begin(), vecSeqInfo.end(), s, seqData());
+            s.start=(*it).rR;
+            s.end=(*it).lR;
+            seqit = lower_bound(vecSeqInfo.begin(), vecSeqInfo.end(), s, seqData());
+            if ((*seqit).keep) {
                 RefFile.getKmerLeftnRightBoundForNs((*it).lR, RefNpos);
                 currHeader = ">InvertedRepeat_in_" + (*seqit).seq + "_LCoord_" + to_string((((*it).lR - (RefNpos.left==1?RefNpos.left=0:RefNpos.left)) + 2)/2) + "_RCoord_" + to_string(((*it).rR - (RefNpos.left==1?RefNpos.left=0:RefNpos.left) + 2)/2);
-                (*seqit).keep = 0;
                 (*seqit).seq = currHeader;
-                duprR = (*it).rR;
-                duplR = (*it).lR;
+                (*seqit).keep = 0;
             }
+            duprR = (*it).rR;
+            duplR = (*it).lR;
         }
     }
 
@@ -1378,8 +1359,11 @@ class tmpFilesInfo {
         sprintf(buffer, "%s/revComp", commonData::nucmer_path);
         remove(buffer);
 
-        sprintf(buffer, "%s/IR", commonData::nucmer_path);
-        remove(buffer);
+        int numFiles=NUM_TMP_FILES;
+        for (int32_t i=0;i<numFiles;i++) {
+            sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
+            remove(buffer);
+        }
 
         sprintf(buffer, "%s", commonData::nucmer_path);
         remove(buffer);

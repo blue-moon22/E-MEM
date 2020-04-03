@@ -224,7 +224,6 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
             rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
             rQMEM = QueryNpos.right;
             arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQtmp, rQtmp, QueryFile, RefFile);
-            arrayTmpFile.addToNumberOfMems(1);
         }
     }
 }
@@ -608,7 +607,6 @@ int main (int argc, char *argv[])
 
     checkCommandLineOptions(options);
 
-    // Open tmp files
     cout << "Opening tmp files..." << endl;
     sprintf(commonData::nucmer_path, "%s/%d_tmp", getenv("NUCMER_E_MEM_OUTPUT_DIRPATH")?getenv("NUCMER_E_MEM_OUTPUT_DIRPATH"):".",getpid());
 
@@ -630,14 +628,19 @@ int main (int argc, char *argv[])
     QueryFile.generateRevComplement();
     RefFile.setSize(QueryFile.getSize());
     RefFile.setNumSequences(QueryFile.getNumSequences());
-
-    /* Only reverse complement matches */
     QueryFile.setReverseFile();
 
     arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(0), QueryFile.getNumSequences());
-    RefFile.allocBinArray(1);
-    RefFile.clearFileFlag();
 
+    cout << "Creating seqData..." << endl;
+    vector<seqData> refSeqInfo;
+    refSeqInfo.reserve(QueryFile.getNumSequences());
+    RefFile.generateSeqPos(refSeqInfo);
+
+    cout << "Allocate Ref bins..." << endl;
+    RefFile.allocBinArray(1);
+
+    RefFile.clearFileFlag();
     QueryFile.clearFileFlag();
     cout << "Encoding Query sequences" << endl;
     if (QueryFile.readChunks())
@@ -646,44 +649,21 @@ int main (int argc, char *argv[])
             cout << "Encoding chunk " << i+1 << " of Ref sequences..." << endl;
             if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
                 processReference(RefFile, QueryFile, arrayTmpFile); // Build hashtable, query hashtable, find ls, and write temp files
+
+                arrayTmpFile.closeFiles(NUM_TMP_FILES);
+
+                cout << "Getting inverted repeats..." << endl;
+                arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo, i);
+                arrayTmpFile.openFiles(ios::out|ios::binary, NUM_TMP_FILES+2);
+
                 RefFile.setCurrPos();
                 RefFile.clearMapForNs(); // clear block of Ns from memory
+
             }
             else
                 break;
         }
-
-        /*
-         * Process MemExt list and write to file
-         */
-        arrayTmpFile.mergeMemExtVector();
     }
-
-    /*
-     * Free up the allocated arrays
-     */
-    arrayTmpFile.closeFiles(NUM_TMP_FILES);
-    QueryFile.closeFile();
-
-    /*
-     * Populate sequence information in vectors. Use this to get MEM
-     * Populate sequence information in vectors. Use this to get MEM
-     * positions relative to the original sequences.
-     */
-    cout << "Creating seqData..." << endl;
-    vector<seqData> refSeqInfo;
-    refSeqInfo.reserve(QueryFile.getNumSequences());
-    RefFile.setSize(QueryFile.getSize());
-    QueryFile.closeFile();
-    QueryFile.destroy();
-
-    RefFile.allocBinArray(0);
-    RefFile.clearFileFlag();
-    if(RefFile.readChunks())
-        RefFile.generateSeqPos(refSeqInfo);
-
-    cout << "Getting inverted repeats..." << endl;
-    arrayTmpFile.getInvertedRepeats(RefFile, refSeqInfo);
 
     cout << "Writing files..." << endl;
     if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
@@ -694,6 +674,10 @@ int main (int argc, char *argv[])
         OutFiles.writeFiles(refSeqInfo, filenames, outPrefix + "_no_ITR.fasta", outPrefix + "_ITR.fasta");
     }
 
+    arrayTmpFile.closeFiles(NUM_TMP_FILES);
+    QueryFile.closeFile();
+
+    QueryFile.destroy();
     arrayTmpFile.removeTmp();
     RefFile.closeFile();
 
