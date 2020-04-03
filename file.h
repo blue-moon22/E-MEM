@@ -868,6 +868,7 @@ class tmpFilesInfo {
     fstream palFile;
     vector <MemExt> MemExtVec;
     uint64_t numMemsInFile;
+    uint64_t numberOfMems = 0;
 
     bool checkMEMExt(uint64_t &lr, uint64_t &rr, uint64_t &lq, uint64_t &rq, seqFileReadInfo &QueryFile, seqFileReadInfo &RefFile) {
       if ((!lq && QueryFile.getCurrPos()) || rq == CHARS2BITS(QueryFile.totalBases-1)) {
@@ -1019,6 +1020,14 @@ class tmpFilesInfo {
            return true;
        }else
            return false;
+    }
+
+    void addToNumberOfMems(uint64_t count){
+        numberOfMems += count;
+    }
+
+    uint64_t getNumberOfMems() {
+        return numberOfMems;
     }
 
     void printQueryHeader(vector<seqData>::iterator &itQ)
@@ -1324,9 +1333,12 @@ class tmpFilesInfo {
 
         //sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles+1);
         //remove(buffer);
+        cout << "Allocating MEM vector..." << endl;
+        MemExtVec.reserve(getNumberOfMems());
 
         openFiles(ios::in|ios::binary, numFiles);
 
+        cout << "Reading MEMs..." << endl;
         for (int32_t i=0;i<numFiles;i++) {
             sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
             if (i == NUM_TMP_FILES) {
@@ -1341,6 +1353,7 @@ class tmpFilesInfo {
             TmpFiles[i].close();
         }
 
+        cout << "Sorting MEMs..." << endl;
         sort(MemExtVec.begin(), MemExtVec.end(), compare_reference);
 
         for (vector<MemExt>::iterator it=MemExtVec.begin();it!=MemExtVec.end();++it) {

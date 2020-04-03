@@ -224,6 +224,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
             rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
             rQMEM = QueryNpos.right;
             arrayTmpFile.writeMemInTmpFiles(lRef, rRef, lQtmp, rQtmp, QueryFile, RefFile);
+            arrayTmpFile.addToNumberOfMems(1);
         }
     }
 }
