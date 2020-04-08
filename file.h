@@ -732,6 +732,31 @@ class seqFileReadInfo {
           }
           revFile.close();
       }
+
+      void convertToNucl(uint64_t bin, string &sequence) {
+          if (bin == 0) {
+              sequence += 'A';
+          } else if (bin == 1) {
+              sequence += 'C';
+          } else if (bin == 2) {
+              sequence += 'G';
+          } else if (bin == 3) {
+              sequence += 'T';
+          }
+      }
+
+      void getFlankingSeq(string &sequence, uint64_t &start, uint64_t &end) {
+          uint64_t currBin;
+          uint32_t offset;
+
+          for (uint64_t pos = (start / 2); pos != (end / 2); ++pos) {
+            currBin = binReads[(pos * 2) / DATATYPE_WIDTH];
+            offset = (pos * 2) % DATATYPE_WIDTH;
+            currBin &= global_mask_right[(DATATYPE_WIDTH - offset) / 2 - 1];
+            currBin >>= ((DATATYPE_WIDTH - 2) - offset);
+            convertToNucl(currBin, sequence);
+          }
+      }
 };
 
 class outFileReadInfo {
@@ -1300,55 +1325,20 @@ class tmpFilesInfo {
         palFile << sequence << "\n";
     }
 
-    void getInvertedRepeats(seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo, int32_t j) {
-        int numFiles=0;
-        vector<MemExt> MemExtVec;
-        MemExt m;
+    void getInvertedRepeats(uint64_t &lRef, uint64_t &rRef, seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo) {
         mapObject RefNpos;
         seqData s;
         vector<seqData>::iterator seqit;
         string currHeader;
-        uint64_t duprR, duplR = 0;
-        char buffer[256];
-        memset(buffer,0,256);
 
-        numFiles=NUM_TMP_FILES;
-
-        sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles);
-        remove(buffer);
-
-        sprintf(buffer, "%s/%d", commonData::nucmer_path, numFiles+1);
-        remove(buffer);
-
-        openFiles(ios::in|ios::binary, numFiles);
-
-        for (int32_t i=0;i<numFiles;i++) {
-            sprintf(buffer, "%s/%d", commonData::nucmer_path, i);
-            if (i == NUM_TMP_FILES) {
-                /* Output any unsued query sequence */
-                m.lR = m.lQ = m.rR = m.rQ = 0;
-                /* Redirect output to reverse complement file */
-                std::cout.rdbuf(TmpFiles[numFiles + 1].rdbuf());
-            }
-            while (!TmpFiles[i].read((char *) &m, sizeof(MemExt)).eof()) {
-                MemExtVec.emplace_back(m);
-            }
-            TmpFiles[i].close();
-            remove(buffer);
-        }
-
-        for (vector<MemExt>::iterator it=MemExtVec.begin();it!=MemExtVec.end();++it) {
-            s.start=(*it).rR;
-            s.end=(*it).lR;
-            seqit = lower_bound(vecSeqInfo.begin(), vecSeqInfo.end(), s, seqData());
-            if ((*seqit).keep) {
-                RefFile.getKmerLeftnRightBoundForNs((*it).lR, RefNpos);
-                currHeader = ">InvertedRepeat_in_" + (*seqit).seq + "_LCoord_" + to_string((((*it).lR - (RefNpos.left==1?RefNpos.left=0:RefNpos.left)) + 2)/2) + "_RCoord_" + to_string(((*it).rR - (RefNpos.left==1?RefNpos.left=0:RefNpos.left) + 2)/2);
-                (*seqit).seq = currHeader;
-                (*seqit).keep = 0;
-            }
-            duprR = (*it).rR;
-            duplR = (*it).lR;
+        s.start=rRef;
+        s.end=lRef;
+        seqit = lower_bound(vecSeqInfo.begin(), vecSeqInfo.end(), s, seqData());
+        if ((*seqit).keep) {
+            RefFile.getKmerLeftnRightBoundForNs(lRef, RefNpos);
+            currHeader = '>' + (*seqit).seq + "_LCoord_" + to_string(((lRef - (RefNpos.left==1?RefNpos.left=0:RefNpos.left)) + 2)/2) + "_RCoord_" + to_string((rRef - (RefNpos.left==1?RefNpos.left=0:RefNpos.left) + 2)/2);
+            (*seqit).seq = currHeader;
+            (*seqit).keep = 0;
         }
     }
 
