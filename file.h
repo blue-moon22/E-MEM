@@ -745,7 +745,7 @@ class seqFileReadInfo {
           }
       }
 
-      void getFlankingSeq(string &sequence, uint64_t &start, uint64_t &end) {
+      void getFlankingSeq(string &sequence, uint64_t start, uint64_t end) {
           uint64_t currBin;
           uint32_t offset;
 
