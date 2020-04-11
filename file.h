@@ -29,7 +29,7 @@ using namespace std;
 #define DATATYPE_WIDTH          64 	// number of bits
 #define RANDOM_SEQ_SIZE         10
 #define NUM_TMP_FILES           24
-#define HAMMING_DISTANCE_LIM    1
+#define LEN_BUFFER              20
 
 class commonData {
   public:
@@ -1325,18 +1325,18 @@ class tmpFilesInfo {
         palFile << sequence << "\n";
     }
 
-    void getInvertedRepeats(uint64_t &lRef, uint64_t &rRef, seqFileReadInfo &RefFile, vector<seqData> &vecSeqInfo) {
-        mapObject RefNpos;
+    void getInvertedRepeats(uint64_t &lQue, uint64_t &rQue, seqFileReadInfo &QueryFile, vector<seqData> &vecSeqInfo) {
+        mapObject QueryNpos;
         seqData s;
         vector<seqData>::iterator seqit;
         string currHeader;
 
-        s.start=rRef;
-        s.end=lRef;
+        s.start=rQue;
+        s.end=lQue;
         seqit = lower_bound(vecSeqInfo.begin(), vecSeqInfo.end(), s, seqData());
         if ((*seqit).keep) {
-            RefFile.getKmerLeftnRightBoundForNs(lRef, RefNpos);
-            currHeader = '>' + (*seqit).seq + "_LCoord_" + to_string(((lRef - (RefNpos.left==1?RefNpos.left=0:RefNpos.left)) + 2)/2) + "_RCoord_" + to_string((rRef - (RefNpos.left==1?RefNpos.left=0:RefNpos.left) + 2)/2);
+            QueryFile.getKmerLeftnRightBoundForNs(lQue, QueryNpos);
+            currHeader = '>' + (*seqit).seq + "_LCoord_" + to_string(((lQue - (QueryNpos.left==1?QueryNpos.left=0:QueryNpos.left)) + 2)/2) + "_RCoord_" + to_string((rQue - (QueryNpos.left==1?QueryNpos.left=0:QueryNpos.left) + 2)/2);
             (*seqit).seq = currHeader;
             (*seqit).keep = 0;
         }

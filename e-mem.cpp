@@ -229,11 +229,11 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
     /* Ignore reverse complements of the same ORF, i.e. where matching prefix/suffix of reference/query
      * Also excludes N mismatches
      */
-     if ((lRef?(lRef - RefNpos.left > 10):!RefNpos.left) && ((QueryNpos.right - rQue) > 10)){
-        if (((RefNpos.right - rRef) > 10) && (lQue?(lQue - QueryNpos.left > 10):!QueryNpos.left)) {
+     if ((lRef?(lRef - RefNpos.left >= LEN_BUFFER):!RefNpos.left) && ((QueryNpos.right - rQue) >= LEN_BUFFER)){
+        if (((RefNpos.right - rRef) >= LEN_BUFFER) && (lQue?(lQue - QueryNpos.left >= LEN_BUFFER):!QueryNpos.left)) {
 
-            QueryFile.getFlankingSeq(flankQue, QueryNpos.right - 10, QueryNpos.right);
-            RefFile.getFlankingSeq(flankRef, RefNpos.left, RefNpos.left + 10);
+            QueryFile.getFlankingSeq(flankQue, QueryNpos.right - LEN_BUFFER, QueryNpos.right);
+            RefFile.getFlankingSeq(flankRef, RefNpos.left, RefNpos.left + LEN_BUFFER);
 
             s1 = flankQue | seqan3::views::char_to<seqan3::dna4>;
             s2 = flankRef | seqan3::views::char_to<seqan3::dna4>;
@@ -241,11 +241,14 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
             auto resultsL = seqan3::align_pairwise(std::tie(s1, s2), config);
             auto & resL = *resultsL.begin();
 
-            if (static_cast<double>(10 + resL.score())/10 < 0.8) {
+            flankQue.clear();
+            flankRef.clear();
+
+            if (static_cast<double>((LEN_BUFFER/2)+resL.score())/(LEN_BUFFER/2) < 0.8) {
 
                 /* Align the right flanking region */
-                QueryFile.getFlankingSeq(flankQue, QueryNpos.left, QueryNpos.left + 10);
-                RefFile.getFlankingSeq(flankRef, RefNpos.right - 10, RefNpos.right);
+                QueryFile.getFlankingSeq(flankQue, QueryNpos.left, QueryNpos.left + LEN_BUFFER);
+                RefFile.getFlankingSeq(flankRef, RefNpos.right - LEN_BUFFER, RefNpos.right);
 
                 s1 = flankQue | seqan3::views::char_to<seqan3::dna4>;
                 s2 = flankRef | seqan3::views::char_to<seqan3::dna4>;
@@ -253,11 +256,11 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
                 auto resultsR = seqan3::align_pairwise(std::tie(s1, s2), config);
                 auto & resR = *resultsR.begin();
 
-                if (static_cast<double>(10 + resR.score())/10 < 0.8) {
+                if (static_cast<double>((LEN_BUFFER/2)+resR.score())/(LEN_BUFFER/2) < 0.8) {
                     lQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - rQue) - 1):(QueryNpos.left + (QueryNpos.right - rQue)));
                     rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
                     rQMEM = QueryNpos.right;
-                    arrayTmpFile.getInvertedRepeats(lRef, rRef, RefFile, vecSeqInfo);
+                    arrayTmpFile.getInvertedRepeats(lQtmp, rQtmp, QueryFile, vecSeqInfo);
                 }
             }
         }
@@ -330,15 +333,14 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                 continue;
             }
             /* Find the K-mer in the refHash */
-            if (currKmerPos > rQMEM) {
-                uint64_t *dataPtr = NULL;
-                if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize / 2 - 1],
-                                      dataPtr)) // dataPtr is position of the kmer in reference
-                {
-                    // We have a match
-                    for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                        if (!((dataPtr[n] < RefNpos.right) && (dataPtr[n] > RefNpos.left)))
-                            helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM, vecSeqInfo);
+            uint64_t *dataPtr = NULL;
+            if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize / 2 - 1],
+                                  dataPtr)) // dataPtr is position of the kmer in reference
+            {
+                // We have a match
+                for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
+                    if (!currKmerPos || currKmerPos > rQMEM) {
+                        helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM, vecSeqInfo);
                     }
                 }
             }
@@ -664,14 +666,15 @@ int main (int argc, char *argv[])
     QueryFile.generateRevComplement();
     RefFile.setSize(QueryFile.getSize());
     RefFile.setNumSequences(QueryFile.getNumSequences());
+
+    cout << "Creating seqData..." << endl;
+    vector<seqData> querySeqInfo;
+    querySeqInfo.reserve(QueryFile.getNumSequences());
+    QueryFile.generateSeqPos(querySeqInfo);
+
     QueryFile.setReverseFile();
 
     arrayTmpFile.setNumMemsInFile(QueryFile.allocBinArray(0), QueryFile.getNumSequences());
-
-    cout << "Creating seqData..." << endl;
-    vector<seqData> refSeqInfo;
-    refSeqInfo.reserve(QueryFile.getNumSequences());
-    RefFile.generateSeqPos(refSeqInfo);
 
     cout << "Allocate Ref bins..." << endl;
     RefFile.allocBinArray(1);
@@ -685,7 +688,7 @@ int main (int argc, char *argv[])
             cout << "Encoding chunk " << i+1 << " of Ref sequences..." << endl;
             if(RefFile.readChunks()){ // Encode sequence as 2-bits in RefFile object
                 cout << "Getting inverted repeats..." << endl;
-                processReference(RefFile, QueryFile, arrayTmpFile, refSeqInfo); // Build hashtable, query hashtable
+                processReference(RefFile, QueryFile, arrayTmpFile, querySeqInfo); // Build hashtable, query hashtable
                 RefFile.setCurrPos();
                 RefFile.clearMapForNs(); // clear block of Ns from memory
 
@@ -698,10 +701,10 @@ int main (int argc, char *argv[])
     cout << "Writing files..." << endl;
     if (IS_FASTA1_DEF(options) && IS_FASTA2_DEF(options)){
         vector<string> filenames = {fasta1, fasta2};
-        OutFiles.writeFiles(refSeqInfo, filenames, outPrefix + "_no_ITR.fasta", outPrefix + "_ITR.fasta");
+        OutFiles.writeFiles(querySeqInfo, filenames, outPrefix + "_no_ITR.fasta", outPrefix + "_ITR.fasta");
     } else if (IS_FASTAU_DEF(options)) {
         vector<string> filenames = {fastaU};
-        OutFiles.writeFiles(refSeqInfo, filenames, outPrefix + "_no_ITR.fasta", outPrefix + "_ITR.fasta");
+        OutFiles.writeFiles(querySeqInfo, filenames, outPrefix + "_no_ITR.fasta", outPrefix + "_ITR.fasta");
     }
 
     QueryFile.closeFile();
