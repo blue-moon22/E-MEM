@@ -306,34 +306,33 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
         #pragma omp for
         for (uint64_t currKmerPos=0; currKmerPos<=totalQBits; currKmerPos+=2)
         {
-            if ((currKmerPos + commonData::kmerSize - 2) > totalQBits)
-                continue;
+            if (!currKmerPos || currKmerPos >= (rQMEM + RANDOM_SEQ_SIZE*2)) {
+                if ((currKmerPos + commonData::kmerSize - 2) > totalQBits)
+                    continue;
 
-            if(QueryFile.checkKmerForNs(currKmerPos, it)){
-                kmerWithNs=1;
-            }
+                if(QueryFile.checkKmerForNs(currKmerPos, it)){
+                    kmerWithNs=1;
+                }
 
-            j=currKmerPos/DATATYPE_WIDTH;// current location in binReads
-            offset = currKmerPos%DATATYPE_WIDTH;
-            if(first || !offset){
-                currKmer = QueryFile.binReads[j];
-                currKmer <<= offset;
-                if(offset > DATATYPE_WIDTH-commonData::kmerSize)
+                j=currKmerPos/DATATYPE_WIDTH;// current location in binReads
+                offset = currKmerPos%DATATYPE_WIDTH;
+                if(first || !offset){
+                    currKmer = QueryFile.binReads[j];
+                    currKmer <<= offset;
+                    if(offset > DATATYPE_WIDTH-commonData::kmerSize)
+                      currKmer |= ((QueryFile.binReads[j+1] & global_mask_left[offset/2-1])>>(DATATYPE_WIDTH-offset));
+                    first=0;
+                }else
+                    currKmer <<= 2;
+
+                if(offset  && !(offset % copyBits))
                   currKmer |= ((QueryFile.binReads[j+1] & global_mask_left[offset/2-1])>>(DATATYPE_WIDTH-offset));
-                first=0;
-            }else
-                currKmer <<= 2;
 
-            if(offset  && !(offset % copyBits))
-              currKmer |= ((QueryFile.binReads[j+1] & global_mask_left[offset/2-1])>>(DATATYPE_WIDTH-offset));
-
-            if (kmerWithNs){
-                /* Do not process this Kmer, Ns in it */
-                kmerWithNs=0;
-                continue;
-            }
-
-            if (!currKmerPos || currKmerPos > rQMEM) {
+                if (kmerWithNs){
+                    /* Do not process this Kmer, Ns in it */
+                    kmerWithNs=0;
+                    continue;
+                }
                 /* Find the K-mer in the refHash */
                 uint64_t *dataPtr = NULL;
                 if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize / 2 - 1],
@@ -341,9 +340,10 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                 {
                     // We have a match
                     for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                        if (!currKmerPos || currKmerPos > rQMEM) {
+                        if (!currKmerPos || currKmerPos > rQMEM)
                             helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM, vecSeqInfo);
-                        }
+                        else
+                            break;
                     }
                 }
             }
