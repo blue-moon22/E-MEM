@@ -332,15 +332,18 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                 kmerWithNs=0;
                 continue;
             }
-            /* Find the K-mer in the refHash */
-            uint64_t *dataPtr = NULL;
-            if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize / 2 - 1],
-                                  dataPtr)) // dataPtr is position of the kmer in reference
-            {
-                // We have a match
-                for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                    if (!currKmerPos || currKmerPos > rQMEM) {
-                        helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM, vecSeqInfo);
+
+            if (!currKmerPos || currKmerPos > rQMEM) {
+                /* Find the K-mer in the refHash */
+                uint64_t *dataPtr = NULL;
+                if (refHash->findKmer(currKmer & global_mask_left[commonData::kmerSize / 2 - 1],
+                                      dataPtr)) // dataPtr is position of the kmer in reference
+                {
+                    // We have a match
+                    for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
+                        if (!currKmerPos || currKmerPos > rQMEM) {
+                            helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM, vecSeqInfo);
+                        }
                     }
                 }
             }
