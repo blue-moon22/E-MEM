@@ -229,39 +229,38 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
     /* Ignore reverse complements of the same ORF, i.e. where matching prefix/suffix of reference/query
      * Also excludes N mismatches
      */
-     if ((lRef?(lRef - RefNpos.left >= LEN_BUFFER):!RefNpos.left) && ((QueryNpos.right - rQue) >= LEN_BUFFER)){
-        if (((RefNpos.right - rRef) >= LEN_BUFFER) && (lQue?(lQue - QueryNpos.left >= LEN_BUFFER):!QueryNpos.left)) {
+     if (!((lRef?(lRef - RefNpos.left < LEN_BUFFER):!RefNpos.left) || ((RefNpos.right - rRef) < LEN_BUFFER) ||
+        (lQue?(lQue - QueryNpos.left < LEN_BUFFER):!QueryNpos.left) || ((QueryNpos.right - rQue) < LEN_BUFFER))) {
 
-            QueryFile.getFlankingSeq(flankQue, QueryNpos.right - LEN_BUFFER, QueryNpos.right);
-            RefFile.getFlankingSeq(flankRef, RefNpos.left, RefNpos.left + LEN_BUFFER);
+        QueryFile.getFlankingSeq(flankQue, lQue - LEN_BUFFER, lQue);
+        RefFile.getFlankingSeq(flankRef, lRef - LEN_BUFFER, lRef);
+
+        s1 = flankQue | seqan3::views::char_to<seqan3::dna4>;
+        s2 = flankRef | seqan3::views::char_to<seqan3::dna4>;
+
+        auto resultsL = seqan3::align_pairwise(std::tie(s1, s2), config);
+        auto & resL = *resultsL.begin();
+
+        flankQue.clear();
+        flankRef.clear();
+
+        if (static_cast<double>((LEN_BUFFER/2)+resL.score())/(LEN_BUFFER/2) < 0.8) {
+
+            /* Align the right flanking region */
+            QueryFile.getFlankingSeq(flankQue, rQue + 2, rQue + LEN_BUFFER + 2);
+            RefFile.getFlankingSeq(flankRef, rRef + 2, rRef + LEN_BUFFER + 2);
 
             s1 = flankQue | seqan3::views::char_to<seqan3::dna4>;
             s2 = flankRef | seqan3::views::char_to<seqan3::dna4>;
 
-            auto resultsL = seqan3::align_pairwise(std::tie(s1, s2), config);
-            auto & resL = *resultsL.begin();
+            auto resultsR = seqan3::align_pairwise(std::tie(s1, s2), config);
+            auto & resR = *resultsR.begin();
 
-            flankQue.clear();
-            flankRef.clear();
-
-            if (static_cast<double>((LEN_BUFFER/2)+resL.score())/(LEN_BUFFER/2) < 0.8) {
-
-                /* Align the right flanking region */
-                QueryFile.getFlankingSeq(flankQue, QueryNpos.left, QueryNpos.left + LEN_BUFFER);
-                RefFile.getFlankingSeq(flankRef, RefNpos.right - LEN_BUFFER, RefNpos.right);
-
-                s1 = flankQue | seqan3::views::char_to<seqan3::dna4>;
-                s2 = flankRef | seqan3::views::char_to<seqan3::dna4>;
-
-                auto resultsR = seqan3::align_pairwise(std::tie(s1, s2), config);
-                auto & resR = *resultsR.begin();
-
-                if (static_cast<double>((LEN_BUFFER/2)+resR.score())/(LEN_BUFFER/2) < 0.8) {
-                    lQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - rQue) - 1):(QueryNpos.left + (QueryNpos.right - rQue)));
-                    rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
-                    rQMEM = QueryNpos.right;
-                    arrayTmpFile.getInvertedRepeats(lQtmp, rQtmp, QueryFile, vecSeqInfo);
-                }
+            if (static_cast<double>((LEN_BUFFER/2)+resR.score())/(LEN_BUFFER/2) < 0.8) {
+                lQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - rQue) - 1):(QueryNpos.left + (QueryNpos.right - rQue)));
+                rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
+                rQMEM = QueryNpos.right;
+                arrayTmpFile.getInvertedRepeats(lQtmp, rQtmp, QueryFile, vecSeqInfo);
             }
         }
     }
