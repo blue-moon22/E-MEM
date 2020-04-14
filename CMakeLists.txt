@@ -11,7 +11,5 @@ if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS}) 
 endif()
 
-find_package (SeqAn3 3.0.0 REQUIRED HINTS "${CMAKE_SOURCE_DIR}/../seqan3/build_system")
 add_executable(e-mem e-mem.cpp) 
-target_link_libraries (e-mem seqan3::seqan3)
 target_link_libraries(e-mem ${Boost_LIBRARIES})

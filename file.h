@@ -50,7 +50,7 @@ int32_t commonData::kmerSize=56; //2 bit representation = 28
 int32_t commonData::fourColOutput=0;
 int32_t commonData::lenInHeader=0;
 int32_t commonData::relQueryPos=0;
-char commonData::nucmer_path[256]={'\0'};
+char commonData::nucmer_path[256]={'\0'};\
 
 
 class seqData {

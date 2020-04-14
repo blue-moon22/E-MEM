@@ -39,17 +39,14 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/tokenizer.hpp>
 #include <sys/stat.h>
-#include <seqan3/alignment/pairwise/align_pairwise.hpp>
-#include <seqan3/alignment/scoring/nucleotide_scoring_scheme.hpp>
-#include <seqan3/alphabet/nucleotide/dna4.hpp>
-#include <seqan3/range/views/char_to.hpp>
-#include <seqan3/core/debug_stream.hpp>
+#include <chrono>
 
 #include "e-mem.h"
 #include "file.h"
 
 using namespace std;
 using namespace boost;
+//using namespace std::chrono;
 
 /*
  * Function builds a kmer hash for a reference sequence.
@@ -102,7 +99,7 @@ void buildRefHash(Knode* &refHash, uint64_t totalBits, seqFileReadInfo &RefFile)
  * Input: name : reference sequence string for output
  *
  */
-void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos, uint64_t &rQMEM, vector<seqData> &vecSeqInfo)
+void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits, uint64_t totalQBits, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, mapObject &RefNpos, mapObject &QueryNpos, uint64_t &rQMEM, uint64_t &lRMEM, uint64_t &rRMEM, vector<seqData> &vecSeqInfo)
 {
     /*
      * lRef and lQue are local variables for left extension of
@@ -116,14 +113,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
     uint64_t currR=0, currQ=0, lQtmp=0, rQtmp=0;
     int i=0,j=0,mismatch=0,binLength,shortestLenL,shortestLenR;
     uint64_t matchSize=0;
-    std::string flankRef, flankQue;
-    seqan3::dna4_vector s1, s2;
-    auto config = seqan3::align_cfg::mode{seqan3::global_alignment} |
-                  seqan3::align_cfg::aligned_ends{seqan3::free_ends_none} |
-                  seqan3::align_cfg::scoring{seqan3::nucleotide_scoring_scheme{}} |
-                  seqan3::align_cfg::result{seqan3::with_alignment};
 
-    // Gets the real N bounds outside the k-mer
     if (!(((QueryNpos.left==0x1)?true:QueryNpos.left<=lQue) && rQue<=QueryNpos.right))
         QueryFile.getKmerLeftnRightBoundForNs(lQue, QueryNpos);
 
@@ -184,6 +174,10 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
              */
             if (rRef+matchSize-lRef < static_cast<uint64_t>(commonData::minMemLen))
             {
+                if ((lRef?(lRef - RefNpos.left < LEN_BUFFER):!lRef) || ((RefNpos.right - rRef) < LEN_BUFFER)) {
+                    rRMEM = RefNpos.right;
+                    lRMEM = RefNpos.left;
+                }
                 return;
             }
 
@@ -229,40 +223,17 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
     /* Ignore reverse complements of the same ORF, i.e. where matching prefix/suffix of reference/query
      * Also excludes N mismatches
      */
-     if (!((lRef?(lRef - RefNpos.left < LEN_BUFFER):!RefNpos.left) || ((RefNpos.right - rRef) < LEN_BUFFER) ||
-        (lQue?(lQue - QueryNpos.left < LEN_BUFFER):!QueryNpos.left) || ((QueryNpos.right - rQue) < LEN_BUFFER))) {
+     if ((lRef?(lRef - RefNpos.left < LEN_BUFFER):!lRef) || ((RefNpos.right - rRef) < LEN_BUFFER)) {
+        rRMEM = RefNpos.right;
+        lRMEM = RefNpos.left;
+        return;
+     }
 
-        QueryFile.getFlankingSeq(flankQue, lQue - LEN_BUFFER, lQue);
-        RefFile.getFlankingSeq(flankRef, lRef - LEN_BUFFER, lRef);
-
-        s1 = flankQue | seqan3::views::char_to<seqan3::dna4>;
-        s2 = flankRef | seqan3::views::char_to<seqan3::dna4>;
-
-        auto resultsL = seqan3::align_pairwise(std::tie(s1, s2), config);
-        auto & resL = *resultsL.begin();
-
-        flankQue.clear();
-        flankRef.clear();
-
-        if (static_cast<double>((LEN_BUFFER/2)+resL.score())/(LEN_BUFFER/2) < 0.8) {
-
-            /* Align the right flanking region */
-            QueryFile.getFlankingSeq(flankQue, rQue + 2, rQue + LEN_BUFFER + 2);
-            RefFile.getFlankingSeq(flankRef, rRef + 2, rRef + LEN_BUFFER + 2);
-
-            s1 = flankQue | seqan3::views::char_to<seqan3::dna4>;
-            s2 = flankRef | seqan3::views::char_to<seqan3::dna4>;
-
-            auto resultsR = seqan3::align_pairwise(std::tie(s1, s2), config);
-            auto & resR = *resultsR.begin();
-
-            if (static_cast<double>((LEN_BUFFER/2)+resR.score())/(LEN_BUFFER/2) < 0.8) {
-                lQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - rQue) - 1):(QueryNpos.left + (QueryNpos.right - rQue)));
-                rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
-                rQMEM = QueryNpos.right;
-                arrayTmpFile.getInvertedRepeats(lQtmp, rQtmp, QueryFile, vecSeqInfo);
-            }
-        }
+     if (!((lQue?(lQue - QueryNpos.left < LEN_BUFFER):!lQue) || ((QueryNpos.right - rQue) < LEN_BUFFER))) {
+        lQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - rQue) - 1):(QueryNpos.left + (QueryNpos.right - rQue)));
+        rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
+        arrayTmpFile.getInvertedRepeats(lQtmp, rQtmp, QueryFile, vecSeqInfo);
+        rQMEM = QueryNpos.right;
     }
 }
 
@@ -270,12 +241,13 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
 {
     uint64_t totalQBits = CHARS2BITS(totalQBases); // convert char position to bit position of QueryFile.totalBases-1
     uint32_t copyBits=0;
+    //auto start = high_resolution_clock::now();
     #pragma omp parallel num_threads(commonData::numThreads)
     {
         uint64_t currKmer=0, j=0;
         int32_t offset=0;
         uint32_t first=1;
-        uint64_t rQMEM=0;
+        uint64_t rQMEM=0,rRMEM=0,lRMEM=0;
         int kmerWithNs=0;
         mapObject QueryNpos, RefNpos;
         vector<SeqPos> SeqPosVec;
@@ -305,7 +277,7 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
         #pragma omp for
         for (uint64_t currKmerPos=0; currKmerPos<=totalQBits; currKmerPos+=2)
         {
-            if (!currKmerPos || currKmerPos >= (rQMEM + RANDOM_SEQ_SIZE*2)) {
+            if ((rQMEM?currKmerPos >= (rQMEM + RANDOM_SEQ_SIZE*2):currKmerPos >= rQMEM)) {
                 if ((currKmerPos + commonData::kmerSize - 2) > totalQBits)
                     continue;
 
@@ -339,8 +311,8 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                 {
                     // We have a match
                     for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                        if (!currKmerPos || currKmerPos > rQMEM)
-                            helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM, vecSeqInfo);
+                        if (currKmerPos > rQMEM && !(dataPtr[n] >= lRMEM && dataPtr[n] <= rRMEM))
+                            helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM, lRMEM, rRMEM, vecSeqInfo);
                         else
                             break;
                     }
@@ -348,6 +320,9 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
             }
         }
     }
+    //auto stop = high_resolution_clock::now();
+    //auto duration = duration_cast<microseconds>(stop - start);
+    //cout << "Time taken by function: " << duration.count() << " microseconds" << endl;
 }
 
 void searchQuery(Knode* &refHash, seqFileReadInfo &RefFile, seqFileReadInfo &QueryFile, tmpFilesInfo &arrayTmpFile, vector<seqData> &vecSeqInfo)
