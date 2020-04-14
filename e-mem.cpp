@@ -39,7 +39,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/tokenizer.hpp>
 #include <sys/stat.h>
-#include <chrono>
+//#include <chrono>
 
 #include "e-mem.h"
 #include "file.h"
@@ -229,7 +229,7 @@ void helperReportMem(uint64_t &currRPos, uint64_t &currQPos, uint64_t totalRBits
         return;
      }
 
-     if (!((lQue?(lQue - QueryNpos.left < LEN_BUFFER):!lQue) || ((QueryNpos.right - rQue) < LEN_BUFFER))) {
+     if (!((lQue?(lQue - QueryNpos.left < LEN_BUFFER):!lQue) || ((QueryNpos.right + 2 - rQue) < LEN_BUFFER))) {
         lQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - rQue) - 1):(QueryNpos.left + (QueryNpos.right - rQue)));
         rQtmp = ((QueryNpos.left == 1)?(QueryNpos.left + (QueryNpos.right - lQue) - 1):(QueryNpos.left + (QueryNpos.right - lQue)));
         arrayTmpFile.getInvertedRepeats(lQtmp, rQtmp, QueryFile, vecSeqInfo);
@@ -278,6 +278,8 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
         for (uint64_t currKmerPos=0; currKmerPos<=totalQBits; currKmerPos+=2)
         {
             if ((rQMEM?currKmerPos >= (rQMEM + RANDOM_SEQ_SIZE*2):currKmerPos >= rQMEM)) {
+                //QueryFile.getKmerLeftnRightBoundForNs(currKmerPos, QueryNpos);
+                //cout << currKmerPos << endl;
                 if ((currKmerPos + commonData::kmerSize - 2) > totalQBits)
                     continue;
 
@@ -311,10 +313,12 @@ void reportMEM(Knode* &refHash, uint64_t totalBases, uint64_t totalQBases, seqFi
                 {
                     // We have a match
                     for (uint64_t n = 1; n <= dataPtr[0]; n++) { // currKmerPos is position of kmer in query
-                        if (currKmerPos > rQMEM && !(dataPtr[n] >= lRMEM && dataPtr[n] <= rRMEM))
-                            helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM, lRMEM, rRMEM, vecSeqInfo);
-                        else
-                            break;
+                        if (!(dataPtr[n] >= lRMEM && dataPtr[n] <= rRMEM)) {
+                            if (currKmerPos > rQMEM)
+                                helperReportMem(dataPtr[n], currKmerPos, CHARS2BITS(totalBases), CHARS2BITS(totalQBases),RefFile, QueryFile, arrayTmpFile, RefNpos, QueryNpos, rQMEM, lRMEM, rRMEM, vecSeqInfo);
+                            else
+                                break;
+                        }
                     }
                 }
             }
